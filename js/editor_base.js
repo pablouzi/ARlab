@@ -16,6 +16,11 @@ const state = {
     rotation: { x:0, y:0, z:0 },
     scale:    { x:1, y:1, z:1 },
   },
+  targetTransform: {
+    position: { x:0, y:0, z:0 },
+    rotation: { x:-90, y:0, z:0 },
+    scale:    { x:1, y:1, z:1 },
+  },
   scene_options: { autoRotate:false, showShadow:true, showGrid:true, animateModel:true },
   // Luces — state canónico (editor + export)
   lighting: [
@@ -34,6 +39,7 @@ let scene, camera, renderer, controls, currentModel, gridHelper;
 let animations = [], mixer = null;
 const clock = new THREE.Clock();
 const threeJsLights = {}; // id -> THREE.Light
+let targetPlaneMesh = null; // Para previsualizar el target en el editor
 
 function initThree() {
   const canvas    = document.getElementById('three-canvas');
@@ -402,16 +408,25 @@ function getAnimButtons(addAnimButtons, clips) {
 // ============================================================
 // TRANSFORM
 // ============================================================
+let activeTransformTarget = 'model'; // 'model' or 'target'
+
 function applyTransform() {
-  if (!currentModel) return;
-  const t = state.transform;
-  currentModel.position.set(t.position.x, t.position.y, t.position.z);
-  currentModel.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
-  currentModel.scale.set(t.scale.x, t.scale.y, t.scale.z);
+  if (currentModel) {
+    const t = state.transform;
+    currentModel.position.set(t.position.x, t.position.y, t.position.z);
+    currentModel.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
+    currentModel.scale.set(t.scale.x, t.scale.y, t.scale.z);
+  }
+  if (targetPlaneMesh) {
+    const t = state.targetTransform;
+    targetPlaneMesh.position.set(t.position.x, t.position.y, t.position.z);
+    targetPlaneMesh.rotation.set(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z));
+    targetPlaneMesh.scale.set(t.scale.x, t.scale.y, t.scale.z);
+  }
 }
 
 function syncTransformUI() {
-  const t = state.transform;
+  const t = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
   ['x','y','z'].forEach(ax => {
     const v = (id) => document.getElementById(id);
     if (v(`pos-${ax}`))    v(`pos-${ax}`).value    = t.position[ax].toFixed(3);
@@ -425,26 +440,59 @@ function syncTransformUI() {
 }
 
 function bindTransformControls() {
+  document.getElementById('btn-transform-model')?.addEventListener('click', e => {
+    activeTransformTarget = 'model';
+    e.target.style.background = 'var(--bg-card)'; e.target.style.color = '#fff'; e.target.style.borderColor = 'var(--border-light)';
+    const bt = document.getElementById('btn-transform-target'); if(bt){ bt.style.background = 'transparent'; bt.style.color = 'var(--text-muted)'; bt.style.borderColor = 'transparent'; }
+    syncTransformUI();
+  });
+  document.getElementById('btn-transform-target')?.addEventListener('click', e => {
+    activeTransformTarget = 'target';
+    e.target.style.background = 'var(--bg-card)'; e.target.style.color = '#fff'; e.target.style.borderColor = 'var(--border-light)';
+    const bm = document.getElementById('btn-transform-model'); if(bm){ bm.style.background = 'transparent'; bm.style.color = 'var(--text-muted)'; bm.style.borderColor = 'transparent'; }
+    syncTransformUI();
+  });
+
   ['x','y','z'].forEach(ax => {
     const bind = (inputId, sliderId, prop) => {
       const inp = document.getElementById(inputId);
       const sl  = document.getElementById(sliderId);
-      inp?.addEventListener('input', () => { state.transform[prop][ax] = parseFloat(inp.value)||0; if(sl) sl.value=state.transform[prop][ax]; applyTransform(); });
-      sl?.addEventListener('input',  () => { state.transform[prop][ax] = parseFloat(sl.value);     if(inp) inp.value=state.transform[prop][ax].toFixed(prop==='rotation'?1:3); applyTransform(); });
+      inp?.addEventListener('input', () => { 
+        const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+        tr[prop][ax] = parseFloat(inp.value)||0; if(sl) sl.value=tr[prop][ax]; applyTransform(); 
+      });
+      sl?.addEventListener('input',  () => { 
+        const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+        tr[prop][ax] = parseFloat(sl.value); if(inp) inp.value=tr[prop][ax].toFixed(prop==='rotation'?1:3); applyTransform(); 
+      });
     };
     bind(`pos-${ax}`, `pos-${ax}-sl`, 'position');
     bind(`rot-${ax}`, `rot-${ax}-sl`, 'rotation');
-    document.getElementById(`scl-${ax}`)?.addEventListener('input', e => { state.transform.scale[ax]=parseFloat(e.target.value)||0.01; applyTransform(); });
+    document.getElementById(`scl-${ax}`)?.addEventListener('input', e => { 
+      const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+      tr.scale[ax]=parseFloat(e.target.value)||0.01; applyTransform(); 
+    });
   });
   document.getElementById('scl-uni')?.addEventListener('input', e => {
     const v = parseFloat(e.target.value);
-    state.transform.scale = {x:v,y:v,z:v};
+    const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+    tr.scale = {x:v,y:v,z:v};
     ['x','y','z'].forEach(ax => { const i = document.getElementById(`scl-${ax}`); if(i) i.value=v.toFixed(3); });
     applyTransform();
   });
-  document.getElementById('reset-position')?.addEventListener('click', () => { state.transform.position={x:0,y:0,z:0}; syncTransformUI(); applyTransform(); });
-  document.getElementById('reset-rotation')?.addEventListener('click', () => { state.transform.rotation={x:0,y:0,z:0}; syncTransformUI(); applyTransform(); });
-  document.getElementById('reset-scale')?.addEventListener('click',    () => { state.transform.scale={x:1,y:1,z:1};    syncTransformUI(); applyTransform(); });
+  document.getElementById('reset-position')?.addEventListener('click', () => { 
+    const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+    tr.position={x:0,y:0,z:0}; syncTransformUI(); applyTransform(); 
+  });
+  document.getElementById('reset-rotation')?.addEventListener('click', () => { 
+    const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+    tr.rotation = activeTransformTarget === 'model' ? {x:0,y:0,z:0} : {x:-90,y:0,z:0}; 
+    syncTransformUI(); applyTransform(); 
+  });
+  document.getElementById('reset-scale')?.addEventListener('click',    () => { 
+    const tr = activeTransformTarget === 'model' ? state.transform : state.targetTransform;
+    tr.scale={x:1,y:1,z:1}; syncTransformUI(); applyTransform(); 
+  });
 }
 
 function bindAnimControls() {
@@ -513,6 +561,7 @@ function handleGLBFile(file) {
 function handleTargetFile(file) {
   state.targets.push({ file, url:URL.createObjectURL(file), name:file.name, size:file.size });
   renderTargetsList(); updateFooterStatus();
+  updateTargetPlane();
   showToast(`🎯 Target "${file.name}" agregado`, 'success');
 }
 function renderGLBCard(file) {
@@ -543,8 +592,41 @@ window.removeGLB = function() {
 };
 window.removeTarget = function(i) {
   URL.revokeObjectURL(state.targets[i].url); state.targets.splice(i,1);
-  renderTargetsList(); updateFooterStatus(); showToast('🗑️ Target eliminado','info');
+  renderTargetsList(); updateFooterStatus(); updateTargetPlane(); showToast('🗑️ Target eliminado','info');
 };
+
+function updateTargetPlane() {
+  if (targetPlaneMesh) {
+    scene.remove(targetPlaneMesh);
+    if (targetPlaneMesh.material.map) targetPlaneMesh.material.map.dispose();
+    targetPlaneMesh.material.dispose();
+    targetPlaneMesh.geometry.dispose();
+    targetPlaneMesh = null;
+  }
+  
+  if (state.targets.length > 0) {
+    const target = state.targets[0];
+    new THREE.TextureLoader().load(target.url, (texture) => {
+      const img = texture.image;
+      const aspect = img.height / img.width;
+      
+      const geometry = new THREE.PlaneGeometry(1, aspect);
+      const material = new THREE.MeshBasicMaterial({ 
+        map: texture, 
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      targetPlaneMesh = new THREE.Mesh(geometry, material);
+      const tt = state.targetTransform;
+      targetPlaneMesh.position.set(tt.position.x, tt.position.y, tt.position.z);
+      targetPlaneMesh.rotation.set(THREE.MathUtils.degToRad(tt.rotation.x), THREE.MathUtils.degToRad(tt.rotation.y), THREE.MathUtils.degToRad(tt.rotation.z));
+      targetPlaneMesh.scale.set(tt.scale.x, tt.scale.y, tt.scale.z);
+      scene.add(targetPlaneMesh);
+    });
+  }
+}
 
 // ============================================================
 // VIEWPORT CAMERA

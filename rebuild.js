@@ -237,10 +237,29 @@ function buildARHtmlFromPaths(opts) {
 window.exportWebApp = async function() {
   if (!state.glbFile) { showToast('Carga un modelo GLB primero', 'error'); return; }
 
-  const t   = state.transform;
-  const pos = [t.position.x, t.position.y, t.position.z].join(' ');
-  const rot = [t.rotation.x, t.rotation.y, t.rotation.z].join(' ');
-  const scl = [t.scale.x,    t.scale.y,    t.scale.z   ].join(' ');
+  const tt = state.targetTransform;
+  const targetMatrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(tt.position.x, tt.position.y, tt.position.z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(tt.rotation.x), THREE.MathUtils.degToRad(tt.rotation.y), THREE.MathUtils.degToRad(tt.rotation.z))),
+      new THREE.Vector3(tt.scale.x, tt.scale.y, tt.scale.z)
+  );
+  const t = state.transform;
+  const modelMatrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(t.position.x, t.position.y, t.position.z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(t.rotation.x), THREE.MathUtils.degToRad(t.rotation.y), THREE.MathUtils.degToRad(t.rotation.z))),
+      new THREE.Vector3(t.scale.x, t.scale.y, t.scale.z)
+  );
+  
+  const relativeMatrix = targetMatrix.invert().multiply(modelMatrix);
+  const relPos = new THREE.Vector3();
+  const relQuat = new THREE.Quaternion();
+  const relScale = new THREE.Vector3();
+  relativeMatrix.decompose(relPos, relQuat, relScale);
+  const relRot = new THREE.Euler().setFromQuaternion(relQuat);
+
+  const pos = [relPos.x.toFixed(3), relPos.y.toFixed(3), relPos.z.toFixed(3)].join(' ');
+  const rot = [THREE.MathUtils.radToDeg(relRot.x).toFixed(2), THREE.MathUtils.radToDeg(relRot.y).toFixed(2), THREE.MathUtils.radToDeg(relRot.z).toFixed(2)].join(' ');
+  const scl = [relScale.x.toFixed(3), relScale.y.toFixed(3), relScale.z.toFixed(3)].join(' ');
   const hasTarget = state.targets.length > 0;
 
   showToast('Iniciando export...', 'info');
