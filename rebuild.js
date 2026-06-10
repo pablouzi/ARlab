@@ -125,14 +125,20 @@ function buildARHtmlFromPaths(opts) {
     (hasTarget ? '<script src="' + CDN_MR + '"><\\/script>' : '<script src="' + CDN_AJ + '"><\\/script>');
 
 
-  // Atributos del modelo 3D — animation-mixer usa solo clips seleccionados
+  // Atributos del modelo 3D
   var enabledClips = animClips.filter(function(c){ return c.enabled; });
   var animAttr = '';
   if (enabledClips.length > 0) {
-    var clipStr = (enabledClips.length === animClips.length || animClips.length === 0)
-      ? '*'
-      : enabledClips.map(function(c){ return c.name; }).join(',');
-    animAttr = ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"';
+    if (animUI && animUI.html) {
+      // Si hay botones de UI interactivos, delegamos en nuestro componente ar-anim-controller
+      animAttr = ' ar-anim-controller';
+    } else {
+      // Si no hay botones, reproducir automáticamente todo lo seleccionado usando animation-mixer
+      var clipStr = (enabledClips.length === animClips.length || animClips.length === 0)
+        ? '*'
+        : '(' + enabledClips.map(function(c){ return c.name; }).join('|') + ')';
+      animAttr = ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"';
+    }
   }
 
   var entityTag = '<a-entity gltf-model="' + modelPath + '"' +

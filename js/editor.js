@@ -399,7 +399,59 @@ function getAnimButtons(addAnimButtons, clips) {
   });
   html += '  <button class="ar-btn" onclick="stopAnim()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3)">🛑 Detener</button>\n</div>\n';
   
-  var js = 'function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\\[\\]\\/\\\\])/g,"\\\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}\n';
+  var js = `AFRAME.registerComponent('ar-anim-controller', {
+  init: function() {
+    this.mixer = null;
+    this.actions = {};
+    this.el.addEventListener('model-loaded', () => {
+      const mesh = this.el.getObject3D('mesh');
+      if (mesh && mesh.animations && mesh.animations.length > 0) {
+        this.mixer = new THREE.AnimationMixer(mesh);
+        mesh.animations.forEach(clip => {
+          const action = this.mixer.clipAction(clip);
+          action.play();
+          action.paused = true;
+          this.actions[clip.name] = action;
+        });
+        document.querySelectorAll('.ar-btn.anim-toggle.active').forEach(b => {
+          const n = b.getAttribute('data-clip');
+          if (this.actions[n]) this.actions[n].paused = false;
+        });
+      }
+    });
+  },
+  tick: function(t, dt) {
+    if (this.mixer) this.mixer.update(dt / 1000);
+  },
+  toggle: function(name, active) {
+    const action = this.actions[name];
+    if (action) {
+      if (active && !action.isRunning()) { action.reset(); action.play(); }
+      action.paused = !active;
+    }
+  },
+  stopAll: function() {
+    Object.values(this.actions).forEach(action => {
+      action.paused = true;
+      action.reset();
+    });
+  }
+});
+
+function toggleAnim(btn, n) {
+  var e = document.querySelector("[gltf-model]");
+  if (!e || !e.components['ar-anim-controller']) return;
+  btn.classList.toggle('active');
+  var isActive = btn.classList.contains('active');
+  e.components['ar-anim-controller'].toggle(n, isActive);
+}
+
+function stopAnim() {
+  var e = document.querySelector("[gltf-model]");
+  if (!e || !e.components['ar-anim-controller']) return;
+  document.querySelectorAll(".ar-btn.anim-toggle").forEach(b => b.classList.remove("active"));
+  e.components['ar-anim-controller'].stopAll();
+}`;
   
   return { css, html, js };
 }
@@ -791,14 +843,20 @@ function buildARHtmlFromPaths(opts) {
     (hasTarget ? '<script src="' + CDN_MR + '"><\/script>' : '<script src="' + CDN_AJ + '"><\/script>');
 
 
-  // Atributos del modelo 3D — animation-mixer usa solo clips seleccionados
+  // Atributos del modelo 3D
   var enabledClips = animClips.filter(function(c){ return c.enabled; });
   var animAttr = '';
   if (enabledClips.length > 0) {
-    var clipStr = (enabledClips.length === animClips.length || animClips.length === 0)
-      ? '*'
-      : enabledClips.map(function(c){ return c.name; }).join(',');
-    animAttr = ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"';
+    if (animUI && animUI.html) {
+      // Si hay botones de UI interactivos, delegamos en nuestro componente ar-anim-controller
+      animAttr = ' ar-anim-controller';
+    } else {
+      // Si no hay botones, reproducir automáticamente todo lo seleccionado usando animation-mixer
+      var clipStr = (enabledClips.length === animClips.length || animClips.length === 0)
+        ? '*'
+        : '(' + enabledClips.map(function(c){ return c.name; }).join('|') + ')';
+      animAttr = ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"';
+    }
   }
 
   var entityTag = '<a-entity gltf-model="' + modelPath + '"' +

@@ -38,14 +38,65 @@ function startAR(){
     scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
     scene.innerHTML =
       '<a-camera position="0 0 0" look-controls="enabled: false"></a-camera>' +
-      '<a-entity mindar-image-target="targetIndex: 0"><a-entity gltf-model=\"assets/model.glb\" position=\"0 0 0\" rotation=\"0 0 0\" scale=\"0.3106554604347063 0.3106554604347063 0.3106554604347063\" shadow=\"cast: true; receive: true\" animation-mixer=\"clip: *; loop: repeat; timeScale: 1\"></a-entity></a-entity>';
+      '<a-entity mindar-image-target="targetIndex: 0"><a-entity gltf-model=\"assets/model.glb\" position=\"0.000 0.000 0.000\" rotation=\"0.00 0.00 0.00\" scale=\"0.311 0.311 0.311\" shadow=\"cast: true; receive: true\" ar-anim-controller></a-entity></a-entity>';
     scene.setAttribute('light','defaultLightsEnabled: false');
     [{"t":"ambient","c":"#ffffff","i":0.6},{"t":"directional","c":"#ffffff","i":1.2,"p":"3 6 3","s":true},{"t":"directional","c":"#00d4ff","i":0.3,"p":"-3 2 -3"},{"t":"directional","c":"#7b5ea7","i":0.4,"p":"0 -2 -4"}].forEach(function(l){var e=document.createElement('a-light');e.setAttribute('type',l.t);e.setAttribute('color',l.c);e.setAttribute('intensity',l.i);if(l.p)e.setAttribute('position',l.p);if(l.s){e.setAttribute('cast-shadow','true');e.setAttribute('shadow-map-width','2048');e.setAttribute('shadow-map-height','2048');e.setAttribute('shadow-camera-near','0.1');e.setAttribute('shadow-camera-far','25');e.setAttribute('shadow-camera-left','-4');e.setAttribute('shadow-camera-right','4');e.setAttribute('shadow-camera-top','4');e.setAttribute('shadow-camera-bottom','-4');}scene.appendChild(e);});
     document.body.appendChild(scene);
     scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});
   setTimeout(function(){var t=document.getElementById('tip');if(t){t.style.opacity='0';t.style.transition='opacity .5s';}},9000);
 }
-function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\[\]\/\\])/g,"\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}
-</script>
+AFRAME.registerComponent('ar-anim-controller', {
+  init: function() {
+    this.mixer = null;
+    this.actions = {};
+    this.el.addEventListener('model-loaded', () => {
+      const mesh = this.el.getObject3D('mesh');
+      if (mesh && mesh.animations && mesh.animations.length > 0) {
+        this.mixer = new THREE.AnimationMixer(mesh);
+        mesh.animations.forEach(clip => {
+          const action = this.mixer.clipAction(clip);
+          action.play();
+          action.paused = true;
+          this.actions[clip.name] = action;
+        });
+        document.querySelectorAll('.ar-btn.anim-toggle.active').forEach(b => {
+          const n = b.getAttribute('data-clip');
+          if (this.actions[n]) this.actions[n].paused = false;
+        });
+      }
+    });
+  },
+  tick: function(t, dt) {
+    if (this.mixer) this.mixer.update(dt / 1000);
+  },
+  toggle: function(name, active) {
+    const action = this.actions[name];
+    if (action) {
+      if (active && !action.isRunning()) { action.reset(); action.play(); }
+      action.paused = !active;
+    }
+  },
+  stopAll: function() {
+    Object.values(this.actions).forEach(action => {
+      action.paused = true;
+      action.reset();
+    });
+  }
+});
+
+function toggleAnim(btn, n) {
+  var e = document.querySelector("[gltf-model]");
+  if (!e || !e.components['ar-anim-controller']) return;
+  btn.classList.toggle('active');
+  var isActive = btn.classList.contains('active');
+  e.components['ar-anim-controller'].toggle(n, isActive);
+}
+
+function stopAnim() {
+  var e = document.querySelector("[gltf-model]");
+  if (!e || !e.components['ar-anim-controller']) return;
+  document.querySelectorAll(".ar-btn.anim-toggle").forEach(b => b.classList.remove("active"));
+  e.components['ar-anim-controller'].stopAll();
+}</script>
 </body>
 </html>
