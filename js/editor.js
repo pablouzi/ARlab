@@ -380,6 +380,24 @@ function _syncAnimPlayback() {
   });
 }
 
+function getAnimButtons(addAnimButtons, clips) {
+  var active = clips.filter(c => c.enabled);
+  if (!addAnimButtons || active.length === 0) return { css: '', html: '', js: '' };
+  
+  var css = '.ar-ui{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;max-width:90vw;overflow-x:auto;padding:8px;background:rgba(0,0,0,0.5);border-radius:12px;backdrop-filter:blur(4px);scrollbar-width:none;}.ar-ui::-webkit-scrollbar{display:none;}.ar-btn{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap;transition:0.2s;}.ar-btn.active{background:rgba(0,212,255,0.5);border-color:#00d4ff;}.ar-btn:active{transform:scale(0.95);}';
+  
+  var html = '<div class="ar-ui">\\n';
+  active.forEach((c, idx) => {
+    var cls = idx === 0 ? 'ar-btn anim-toggle active' : 'ar-btn anim-toggle';
+    html += '  <button class="' + cls + '" data-clip="' + c.name.replace(/'/g, "\\\\'") + '" onclick="toggleAnim(this, \\'' + c.name.replace(/'/g, "\\\\'") + '\\')">' + c.name + '</button>\\n';
+  });
+  html += '  <button class="ar-btn" onclick="stopAnim()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3)">🛑 Detener</button>\\n</div>\\n';
+  
+  var js = 'function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\\\\[\\\\]\\\\/\\\\\\\\])/g,"\\\\\\\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}\\n';
+  
+  return { css, html, js };
+}
+
 
 // ============================================================
 // TRANSFORM
@@ -674,6 +692,7 @@ function buildARHtmlFromPaths(opts) {
   var rot       = opts.rot;
   var scl       = opts.scl;
   var animClips = opts.animClips || []; // [{name, enabled}]
+  var animUI    = opts.animUI || { css: '', html: '', js: '' };
 
 
   var CDN_AF = 'https://aframe.io/releases/1.5.0/aframe.min.js';
@@ -732,7 +751,6 @@ function buildARHtmlFromPaths(opts) {
     sceneCode += "    scene.innerHTML =\n";
     sceneCode += "      '<a-camera position=\"0 0 0\" look-controls=\"enabled: false\"></a-camera>' +\n";
     sceneCode += "      '<a-entity mindar-image-target=\"targetIndex: 0\">" +
-      "<a-plane rotation=\"-90 0 0\" width=\"2\" height=\"2\" material=\"color:#000;opacity:0.3;transparent:true\" shadow=\"receive:true\"></a-plane>" +
       entityTag.replace(/'/g, "\\'").replace(/"/g, '\\"') +
       "</a-entity>';\n";
     sceneCode += lightCode;
@@ -770,7 +788,7 @@ function buildARHtmlFromPaths(opts) {
     '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<title>AR Experience</title>\n' +
     scripts + '\n' +
-    '<style>' + css + '<\/style>\n' +
+    '<style>' + css + animUI.css + '<\/style>\n' +
     '<\/head>\n<body>\n' +
     '<div id="start-screen">\n' +
     '  <div style="font-size:52px">&#x1F4E6;<\/div>\n' +
@@ -779,6 +797,7 @@ function buildARHtmlFromPaths(opts) {
     '  <button id="start-btn" onclick="startAR()">Iniciar AR<\/button>\n' +
     '  <p style="font-size:10px;color:rgba(255,255,255,.2)">localhost o HTTPS<\/p>\n' +
     '<\/div>\n' +
+    animUI.html +
     '<div id="tip">' + tipText + '<\/div>\n' +
     '<script>\n' +
     'var _s=false;\n' +
@@ -789,6 +808,7 @@ function buildARHtmlFromPaths(opts) {
     sceneCode +
     '  setTimeout(function(){var t=document.getElementById(\'tip\');if(t){t.style.opacity=\'0\';t.style.transition=\'opacity .5s\';}},9000);\n' +
     '}\n' +
+    animUI.js +
     '<\/script>\n' +
     '<\/body>\n<\/html>';
 
@@ -840,7 +860,9 @@ window.exportWebApp = async function() {
       }
 
       showProgress('Generando HTML...');
-      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting });
+      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
+      const animUI = getAnimButtons(addAnimButtons, state.animClips);
+      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting, animUI });
 
 
 
@@ -875,13 +897,16 @@ window.exportWebApp = async function() {
       }
 
       showProgress('Generando HTML...');
+      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
+      const animUI = getAnimButtons(addAnimButtons, state.animClips);
       const html = buildARHtmlFromPaths({ 
         hasTarget, 
         modelPath: 'assets/model.glb', 
         mindPath: mindBuffer ? 'assets/targets.mind' : null, 
         pos, rot, scl, 
         animClips: state.animClips, 
-        lighting: state.lighting 
+        lighting: state.lighting,
+        animUI
       });
 
       function downloadFile(blob, filename) {

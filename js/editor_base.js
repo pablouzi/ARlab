@@ -380,6 +380,24 @@ function _syncAnimPlayback() {
   });
 }
 
+function getAnimButtons(addAnimButtons, clips) {
+  var active = clips.filter(c => c.enabled);
+  if (!addAnimButtons || active.length === 0) return { css: '', html: '', js: '' };
+  
+  var css = '.ar-ui{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;max-width:90vw;overflow-x:auto;padding:8px;background:rgba(0,0,0,0.5);border-radius:12px;backdrop-filter:blur(4px);scrollbar-width:none;}.ar-ui::-webkit-scrollbar{display:none;}.ar-btn{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap;transition:0.2s;}.ar-btn.active{background:rgba(0,212,255,0.5);border-color:#00d4ff;}.ar-btn:active{transform:scale(0.95);}';
+  
+  var html = '<div class="ar-ui">\\n';
+  active.forEach((c, idx) => {
+    var cls = idx === 0 ? 'ar-btn anim-toggle active' : 'ar-btn anim-toggle';
+    html += '  <button class="' + cls + '" data-clip="' + c.name.replace(/'/g, "\\\\'") + '" onclick="toggleAnim(this, \\'' + c.name.replace(/'/g, "\\\\'") + '\\')">' + c.name + '</button>\\n';
+  });
+  html += '  <button class="ar-btn" onclick="stopAnim()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3)">🛑 Detener</button>\\n</div>\\n';
+  
+  var js = 'function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\\\\[\\\\]\\\\/\\\\\\\\])/g,"\\\\\\\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}\\n';
+  
+  return { css, html, js };
+}
+
 
 // ============================================================
 // TRANSFORM

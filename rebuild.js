@@ -108,6 +108,7 @@ function buildARHtmlFromPaths(opts) {
   var rot       = opts.rot;
   var scl       = opts.scl;
   var animClips = opts.animClips || []; // [{name, enabled}]
+  var animUI    = opts.animUI || { css: '', html: '', js: '' };
 
 
   var CDN_AF = '${CDN_AFRAME}';
@@ -166,7 +167,6 @@ function buildARHtmlFromPaths(opts) {
     sceneCode += "    scene.innerHTML =\\n";
     sceneCode += "      '<a-camera position=\\\"0 0 0\\\" look-controls=\\\"enabled: false\\\"></a-camera>' +\\n";
     sceneCode += "      '<a-entity mindar-image-target=\\\"targetIndex: 0\\\">" +
-      "<a-plane rotation=\\\"-90 0 0\\\" width=\\\"2\\\" height=\\\"2\\\" material=\\\"color:#000;opacity:0.3;transparent:true\\\" shadow=\\\"receive:true\\\"></a-plane>" +
       entityTag.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"') +
       "</a-entity>';\\n";
     sceneCode += lightCode;
@@ -204,7 +204,7 @@ function buildARHtmlFromPaths(opts) {
     '<meta name="viewport" content="width=device-width, initial-scale=1">\\n' +
     '<title>AR Experience</title>\\n' +
     scripts + '\\n' +
-    '<style>' + css + '<\\/style>\\n' +
+    '<style>' + css + animUI.css + '<\\/style>\\n' +
     '<\\/head>\\n<body>\\n' +
     '<div id="start-screen">\\n' +
     '  <div style="font-size:52px">&#x1F4E6;<\\/div>\\n' +
@@ -213,6 +213,7 @@ function buildARHtmlFromPaths(opts) {
     '  <button id="start-btn" onclick="startAR()">Iniciar AR<\\/button>\\n' +
     '  <p style="font-size:10px;color:rgba(255,255,255,.2)">localhost o HTTPS<\\/p>\\n' +
     '<\\/div>\\n' +
+    animUI.html +
     '<div id="tip">' + tipText + '<\\/div>\\n' +
     '<script>\\n' +
     'var _s=false;\\n' +
@@ -223,6 +224,7 @@ function buildARHtmlFromPaths(opts) {
     sceneCode +
     '  setTimeout(function(){var t=document.getElementById(\\'tip\\');if(t){t.style.opacity=\\'0\\';t.style.transition=\\'opacity .5s\\';}},9000);\\n' +
     '}\\n' +
+    animUI.js +
     '<\\/script>\\n' +
     '<\\/body>\\n<\\/html>';
 
@@ -274,7 +276,9 @@ window.exportWebApp = async function() {
       }
 
       showProgress('Generando HTML...');
-      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting });
+      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
+      const animUI = getAnimButtons(addAnimButtons, state.animClips);
+      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting, animUI });
 
 
 
@@ -309,13 +313,16 @@ window.exportWebApp = async function() {
       }
 
       showProgress('Generando HTML...');
+      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
+      const animUI = getAnimButtons(addAnimButtons, state.animClips);
       const html = buildARHtmlFromPaths({ 
         hasTarget, 
         modelPath: 'assets/model.glb', 
         mindPath: mindBuffer ? 'assets/targets.mind' : null, 
         pos, rot, scl, 
         animClips: state.animClips, 
-        lighting: state.lighting 
+        lighting: state.lighting,
+        animUI
       });
 
       function downloadFile(blob, filename) {
