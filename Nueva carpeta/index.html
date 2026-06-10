@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Dron de Exploración AR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <!-- Importamos A-Frame, MindAR y aframe-extras para soporte de animaciones en modelos GLB -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+    
+    <style>
+      body { margin: 0; overflow: hidden; font-family: sans-serif; }
+      .loading-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.95); color: white; display: flex;
+        flex-direction: column; justify-content: center; align-items: center;
+        z-index: 9999; transition: opacity 0.5s ease;
+      }
+      .instructions-ui {
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.85); color: #8b5cf6; padding: 12px 24px;
+        border-radius: 24px; font-weight: bold; font-size: 14px;
+        pointer-events: none; text-align: center; border: 1px solid #8b5cf6;
+        z-index: 999;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Pantalla de carga para MindAR -->
+    <div id="mindar-loader" class="loading-overlay">
+      <h2 style="margin: 0; font-size: 24px; color: #a78bfa;">MindAR Workspace</h2>
+      <p style="color: #94a3b8; font-size: 14px; margin-top: 8px;">Compilando puntos de anclaje de imagen...</p>
+    </div>
+
+    <!-- Instrucción visual -->
+    <div class="instructions-ui">
+      Escanear el Marker de Imagen Configurado
+    </div>
+
+    <!-- Escena MindAR -->
+    <!-- Reemplaza targets.mind con tu archivo compilado (generado con la herramienta mindar-compile) -->
+    <a-scene 
+      mindar-image="imageTargetSrc: targets.mind; filterMinCF:0.0001; filterBeta: 0.001;" 
+      color-space="sRGB" 
+      renderer="colorManagement: true, physicallyCorrectLights" 
+      vr-mode-ui="enabled: false" 
+      device-orientation-permission-ui="enabled: false">
+      
+      <a-assets>
+        <a-asset-item id="modelo-3d" src="marleyblend.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <!-- Vinculamos al target índice 0 (Primer marcador de imagen compilado) -->
+      <a-entity mindar-image-target="targetIndex: 0" id="target-anchor">
+        <a-gltf-model 
+          id="modelo-ar"
+          src="#modelo-3d" 
+          position="0 0 0" 
+          rotation="0 0 0" 
+          scale="1 1 1"
+          material="color: #ffffff; roughness: 0.5; metalness: 0.5; opacity: 1;"
+          shadow="cast:true;"
+          animation-mixer>
+        </a-gltf-model>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      // Ocultar pantalla al iniciar la cámara
+      const sceneEl = document.querySelector('a-scene');
+      sceneEl.addEventListener("arReady", (event) => {
+        const loader = document.getElementById('mindar-loader');
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.display = 'none', 500);
+      });
+
+      // Ejecución del script dinámico
+      const model = document.querySelector('#modelo-ar');
+      
+      let updateCallbacks = [];
+      let clickCallbacks = [];
+
+      function onUpdate(cb) {
+        updateCallbacks.push(cb);
+      }
+
+      function onClick(cb) {
+        clickCallbacks.push(cb);
+      }
+
+      model.addEventListener('click', () => {
+        clickCallbacks.forEach(cb => cb());
+      });
+
+      let lastTime = performance.now();
+      function tick() {
+        requestAnimationFrame(tick);
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - lastTime) / 1000;
+        lastTime = currentTime;
+
+        updateCallbacks.forEach(cb => cb(deltaTime));
+      }
+      requestAnimationFrame(tick);
+
+      // Animación al hacer clic o simular tap sobre el modelo
+let targetScale = 1.0;
+let currentScale = 1.0;
+
+onClick(() => {
+  targetScale = 1.4; // Agrandar
+  setTimeout(() => { targetScale = 1.0; }, 400); // Volver
+});
+
+onUpdate((deltaTime) => {
+  // Interpolación suave del factor de escala
+  currentScale += (targetScale - currentScale) * 10 * deltaTime;
+  model.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+});
+    </script>
+  </body>
+</html>

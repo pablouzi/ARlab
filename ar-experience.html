@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AR Experience</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.4.0/dist/aframe-extras.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<style>body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+#start-screen { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: #060810; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }
+#start-screen h1 { font-size: 24px; color: #fff; margin-bottom: 10px; }
+#start-screen p { font-size: 14px; color: rgba(255,255,255,0.6); max-width: 300px; line-height: 1.6; }
+#start-btn { padding: 14px 40px; background: linear-gradient(135deg, #00d4ff, #0099cc); color: #000; font-weight: 800; font-size: 16px; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,212,255,0.3); }
+#tip { position: fixed; bottom: 130px; left: 50%; transform: translateX(-50%); display: none; background: rgba(0,0,0,0.85); color: #fff; padding: 12px 24px; border-radius: 30px; font-size: 14px; z-index: 50; box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; }.ar-ui{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;max-width:90vw;overflow-x:auto;padding:8px;background:rgba(0,0,0,0.5);border-radius:12px;backdrop-filter:blur(4px);scrollbar-width:none;}.ar-ui::-webkit-scrollbar{display:none;}.ar-btn{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap;transition:0.2s;}.ar-btn.active{background:rgba(0,212,255,0.5);border-color:#00d4ff;}.ar-btn:active{transform:scale(0.95);}</style>
+</head>
+<body>
+<div id="start-screen">
+  <div style="font-size:52px">&#x1F4E6;</div>
+  <h1>AR Experience</h1>
+  <p>Seguimiento de imagen con MindAR</p>
+  <button id="start-btn" onclick="startAR()">Iniciar AR</button>
+  <p style="font-size:10px; color:rgba(255,255,255,0.2); margin-top:20px;">Requiere HTTPS (o localhost) para usar la cámara.</p>
+</div>
+<div class="ar-ui">
+  <button class="ar-btn anim-toggle active" data-clip="tapa" onclick="toggleAnim(this, 'tapa')">tapa</button>
+  <button class="ar-btn anim-toggle" data-clip="hojas" onclick="toggleAnim(this, 'hojas')">hojas</button>
+  <button class="ar-btn anim-toggle" data-clip="hoja1" onclick="toggleAnim(this, 'hoja1')">hoja1</button>
+  <button class="ar-btn anim-toggle" data-clip="hoja4" onclick="toggleAnim(this, 'hoja4')">hoja4</button>
+  <button class="ar-btn anim-toggle" data-clip="todas" onclick="toggleAnim(this, 'todas')">todas</button>
+  <button class="ar-btn" onclick="stopAnim()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3)">⏹ Detener</button>
+</div>
+<div id="tip">Apunta al target para ver el modelo 3D</div>
+<script>
+function startAR() {
+  document.getElementById("start-screen").style.display = "none";
+    var scene = document.createElement('a-scene');
+    scene.setAttribute('mindar-image', 'imageTargetSrc: assets/targets.mind; filterMinCF: 0.1; filterBeta: 10;');
+    scene.setAttribute('color-space', 'sRGB');
+    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');
+    scene.setAttribute('vr-mode-ui', 'enabled: false');
+    scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
+    scene.innerHTML =
+      '<a-camera position="0 0 0" look-controls="enabled: false"></a-camera>' +
+      '<a-entity mindar-image-target="targetIndex: 0"><a-entity gltf-model=\"assets/model.glb\" position=\"0 0 0\" rotation=\"0 0 0\" scale=\"0.3106554604347063 0.3106554604347063 0.3106554604347063\" shadow=\"cast: true; receive: true\" animation-mixer=\"clip: tapa; loop: repeat; timeScale: 1\"></a-entity></a-entity>';
+    scene.setAttribute('light','defaultLightsEnabled: false');
+    [{"t":"ambient","c":"#ffffff","i":0.6},{"t":"directional","c":"#ffffff","i":1.2,"p":"3 6 3","s":true},{"t":"directional","c":"#00d4ff","i":0.3,"p":"-3 2 -3"},{"t":"directional","c":"#7b5ea7","i":0.4,"p":"0 -2 -4"}].forEach(function(l){var e=document.createElement('a-light');e.setAttribute('type',l.t);e.setAttribute('color',l.c);e.setAttribute('intensity',l.i);if(l.p)e.setAttribute('position',l.p);if(l.s){e.setAttribute('cast-shadow','true');e.setAttribute('shadow-map-width','2048');e.setAttribute('shadow-map-height','2048');e.setAttribute('shadow-camera-near','0.1');e.setAttribute('shadow-camera-far','25');e.setAttribute('shadow-camera-left','-4');e.setAttribute('shadow-camera-right','4');e.setAttribute('shadow-camera-top','4');e.setAttribute('shadow-camera-bottom','-4');}scene.appendChild(e);});
+    document.body.appendChild(scene);
+    scene.addEventListener('loaded', function() { var t=document.getElementById('tip'); if(t) t.style.display='block'; });
+  setTimeout(function(){var t=document.getElementById('tip');if(t){t.style.opacity='0';t.style.transition='opacity .5s';}},9000);
+}
+function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\[\]\/\\])/g,"\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}
+</script>
+</body>
+</html>

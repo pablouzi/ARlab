@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AR Debug Test</title>
+<!-- URLs VERIFICADAS: aframe.io=200, jsdelivr gh=200 -->
+<script>
+  // Detectar si los scripts cargan con errores
+  window.addEventListener('error', function(e) {
+    if (e.target && e.target.tagName === 'SCRIPT') {
+      log('ERROR cargando script: ' + e.target.src, 'err');
+    }
+  }, true);
+</script>
+<script src="https://aframe.io/releases/1.4.0/aframe.min.js"
+        onload="log('A-Frame script cargado','ok')"
+        onerror="log('ERROR: A-Frame NO cargo desde aframe.io','err')"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"
+        onload="log('AR.js script cargado','ok')"
+        onerror="log('ERROR: AR.js NO cargo desde jsdelivr gh','err')"></script>
+<style>
+  body { margin:0; background:#000; font-family:sans-serif; color:#fff; overflow:hidden; }
+  #log { position:fixed; top:0; left:0; right:0; background:rgba(0,0,0,.9);
+         padding:10px; font-size:11px; font-family:monospace; z-index:99999;
+         max-height:50vh; overflow-y:auto; border-bottom:1px solid #333; }
+  .ok  { color:#4eff8a; } .err { color:#ff6b6b; } .inf { color:#00d4ff; } .warn { color:#ffc300; }
+  #btn { position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+         padding:14px 28px; background:#00d4ff; color:#000; font-weight:800;
+         font-size:14px; border:none; border-radius:30px; cursor:pointer; z-index:99999; }
+</style>
+</head>
+<body>
+<div id="log"></div>
+<button id="btn" onclick="startTest()">INICIAR PRUEBA AR</button>
+
+<script>
+function log(msg, type) {
+  var el = document.getElementById('log');
+  if (!el) { console.log(msg); return; }
+  var d = document.createElement('div');
+  d.className = type || 'inf';
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+  console.log(msg);
+}
+
+// Interceptar errores JS globales
+window.onerror = function(msg, src, line) {
+  log('JS ERROR: ' + msg + ' (' + (src||'').split('/').pop() + ':' + line + ')', 'err');
+};
+var _ce = console.error;
+console.error = function() { log('console.error: ' + Array.from(arguments).join(' '), 'err'); _ce.apply(console,arguments); };
+var _cw = console.warn;
+console.warn  = function() { log('console.warn: '  + Array.from(arguments).join(' '), 'warn'); _cw.apply(console,arguments); };
+
+// Checks iniciales (correr después de scripts sincronos)
+window.addEventListener('load', function() {
+  log('=== CHECKS INICIALES ===', 'inf');
+  log('Protocolo: ' + location.protocol + ' | URL: ' + location.href,
+      location.protocol === 'file:' ? 'err' : 'ok');
+  log('AFRAME: ' + (window.AFRAME ? 'CARGADO v' + AFRAME.version : 'NO CARGADO'),
+      window.AFRAME ? 'ok' : 'err');
+  log('AFRAME.components[arjs]: ' + (AFRAME && AFRAME.components['arjs'] ? 'SI' : 'NO'),
+      AFRAME && AFRAME.components['arjs'] ? 'ok' : 'warn');
+  log('getUserMedia: ' + (navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'disponible' : 'NO disponible'),
+      navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'ok' : 'err');
+  log('WebGL: ' + (function(){ try { return !!document.createElement('canvas').getContext('webgl') ? 'OK' : 'NO'; } catch(e){ return 'ERROR: '+e.message; } }()), 'ok');
+  log('=== Listo para iniciar prueba ===', 'inf');
+});
+
+function startTest() {
+  var btn = document.getElementById('btn');
+  btn.textContent = 'Iniciando...'; btn.disabled = true;
+
+  if (!window.AFRAME) { log('BLOQUEADO: A-Frame no esta cargado. No puede continuar.', 'err'); return; }
+
+  log('--- Creando escena AR minima (cubo rojo sobre Hiro) ---', 'inf');
+
+  var scene = document.createElement('a-scene');
+  scene.setAttribute('embedded', '');
+  scene.setAttribute('arjs', 'trackingMethod:best; sourceType:webcam; debugUIEnabled:false;');
+  scene.setAttribute('vr-mode-ui', 'enabled:false');
+  scene.innerHTML =
+    '<a-marker preset="hiro">' +
+      '<a-box position="0 0.5 0" color="#ff0050" scale="0.5 0.5 0.5"></a-box>' +
+    '</a-marker>' +
+    '<a-entity camera></a-entity>';
+
+  scene.addEventListener('loaded', function() {
+    log('EXITO: scene.loaded disparo - AR funciona!', 'ok');
+    btn.textContent = 'Apunta al marcador HIRO'; btn.disabled = false;
+  });
+  scene.addEventListener('camera-init', function() { log('camera-init OK', 'ok'); });
+  scene.addEventListener('loaded', function() { log('hasLoaded: ' + scene.hasLoaded, 'ok'); });
+
+  document.body.appendChild(scene);
+  log('Escena agregada al DOM - esperando camara y AR.js...', 'inf');
+  log('Si el navegador no pide permiso de camara en 5s, hay un bloqueo.', 'warn');
+
+  // Checks periodicos
+  [3000, 6000, 10000].forEach(function(ms) {
+    setTimeout(function() {
+      log(ms/1000 + 's: hasLoaded=' + scene.hasLoaded + ' | renderer=' + !!scene.renderer, scene.hasLoaded ? 'ok' : 'warn');
+    }, ms);
+  });
+}
+</script>
+</body>
+</html>
