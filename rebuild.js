@@ -248,7 +248,7 @@ window.exportWebApp = async function() {
     let serverOk = false;
     try {
       const ping = await fetch('/save-binary', { method: 'OPTIONS' });
-      serverOk = ping.status === 204 || ping.status === 200 || ping.status === 405;
+      serverOk = ping.status === 204 || ping.status === 200;
     } catch(e) { serverOk = false; }
 
     if (serverOk) {
