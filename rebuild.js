@@ -337,7 +337,7 @@ window.exportWebApp = async function() {
       const fbAnimAttr = fbClipStr ? '\\\" animation-mixer=\\\"clip: ' + fbClipStr + '; loop: repeat; timeScale: 1' : '';
 
       // entityTag — usa MODEL_URL (blob URL definida en blobModelCode)
-      const entityTag = '<a-entity gltf-model=\\\""+ MODEL_URL +"\\\" position=\\\"' + pos + '\\\" rotation=\\\"' + rot + '\\\" scale=\\\"' + scl + fbAnimAttr + '\\\" shadow=\\\"cast: true; receive: true\\\"></a-entity>';
+      const entityTag = '<a-entity gltf-model="\\' + MODEL_URL + \\'" position="' + pos + '" rotation="' + rot + '" scale="' + scl + '" shadow="cast: true; receive: true"' + fbAnimAttr + '></a-entity>';
 
       // lightCode dinámico desde state.lighting (igual que en buildARHtmlFromPaths)
       const fbActiveLights = state.lighting.filter(function(l){ return l.enabled; });
@@ -359,7 +359,7 @@ window.exportWebApp = async function() {
         sc += "    scene.setAttribute('renderer','colorManagement:true;physicallyCorrectLights:true;toneMapping:aces;toneMappingExposure:1.2;shadowMapEnabled:true;shadowMapType:2;');\\n";
         sc += "    scene.setAttribute('vr-mode-ui','enabled:false');\\n";
         sc += "    scene.setAttribute('device-orientation-permission-ui','enabled:false');\\n";
-        sc += "    scene.innerHTML='<a-camera position=\\\"0 0 0\\\" look-controls=\\\"enabled:false\\\"></a-camera><a-entity mindar-image-target=\\\"targetIndex:0\\\"><" + entityTag + "</a-entity>';\\n";
+        sc += "    scene.innerHTML='<a-camera position=\\\"0 0 0\\\" look-controls=\\\"enabled:false\\\"></a-camera><a-entity mindar-image-target=\\\"targetIndex:0\\\">" + entityTag.replace(/'/g, "\\\\'") + "</a-entity>';\\n";
         sc += fbLightCode;
         sc += "    document.body.appendChild(scene);\\n";
         sc += "    scene.addEventListener('loaded',function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\\n";
@@ -370,7 +370,8 @@ window.exportWebApp = async function() {
         sc += "    scene.setAttribute('arjs','trackingMethod:best;sourceType:webcam;debugUIEnabled:false;');\\n";
         sc += "    scene.setAttribute('renderer','colorManagement:true;physicallyCorrectLights:true;toneMapping:aces;toneMappingExposure:1.2;shadowMapEnabled:true;shadowMapType:2;');\\n";
         sc += "    scene.setAttribute('vr-mode-ui','enabled:false');\\n";
-        sc += "    scene.innerHTML='<a-marker preset=\\\"hiro\\\"><" + entityTag + "</a-marker><a-entity camera></a-entity>';\\n";
+        sc += "    scene.innerHTML='<a-marker preset=\\\"hiro\\\">" + entityTag.replace(/'/g, "\\\\'") + "</a-marker><a-entity camera></a-entity>';\\n";
+
         sc += fbLightCode;
         sc += "    document.body.appendChild(scene);\\n";
         sc += "    scene.addEventListener('loaded',function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\\n";

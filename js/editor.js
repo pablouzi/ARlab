@@ -462,15 +462,6 @@ function bindSceneOptions() {
   document.getElementById('toggle-shadow')?.addEventListener('change',     e => { const p = scene.getObjectByName('shadowPlane'); if(p) p.visible = e.target.checked; });
   document.getElementById('bg-color')?.addEventListener('input',           e => { scene.background=new THREE.Color(e.target.value); document.getElementById('bg-color-hex').textContent=e.target.value; });
   document.getElementById('ar-scale')?.addEventListener('change',          e => { state.scene_options.arScale = e.target.value; });
-
-  const bindArProp = (slId, inpId) => {
-    const sl = document.getElementById(slId), inp = document.getElementById(inpId);
-    if (!sl || !inp) return;
-    sl.addEventListener('input', e => { inp.value = e.target.value; });
-    inp.addEventListener('input', e => { sl.value = e.target.value; });
-  };
-  bindArProp('ar-filter-min-cf-sl', 'ar-filter-min-cf');
-  bindArProp('ar-filter-beta-sl', 'ar-filter-beta');
 }
 
 
@@ -618,7 +609,7 @@ async function compileImageToMind(imageFile, onProgress) {
       } catch(e) { URL.revokeObjectURL(url); reject(e); }
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Error cargando imagen')); };
-    // img.crossOrigin = 'anonymous'; // Not needed for blobs and can cause CORS issues
+    img.crossOrigin = 'anonymous';
     img.src = url;
   });
 }
@@ -671,27 +662,9 @@ async function saveBinaryToServer(filename, fileOrBuffer) {
   return data;
 }
 
-function getAnimButtons(addAnimButtons, clips) {
-  var active = clips.filter(c => c.enabled);
-  if (!addAnimButtons || active.length === 0) return { css: '', html: '', js: '' };
-  
-  var css = '.ar-ui{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;max-width:90vw;overflow-x:auto;padding:8px;background:rgba(0,0,0,0.5);border-radius:12px;backdrop-filter:blur(4px);scrollbar-width:none;}.ar-ui::-webkit-scrollbar{display:none;}.ar-btn{background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;white-space:nowrap;transition:0.2s;}.ar-btn.active{background:rgba(0,212,255,0.5);border-color:#00d4ff;}.ar-btn:active{transform:scale(0.95);}';
-  
-  var html = '<div class="ar-ui">\n';
-  active.forEach((c, idx) => {
-    var cls = idx === 0 ? 'ar-btn anim-toggle active' : 'ar-btn anim-toggle';
-    html += '  <button class="' + cls + '" data-clip="' + c.name.replace(/'/g, "\\'") + '" onclick="toggleAnim(this, \'' + c.name.replace(/'/g, "\\'") + '\')">' + c.name + '</button>\n';
-  });
-  html += '  <button class="ar-btn" onclick="stopAnim()" style="color:#ff6b6b;border-color:rgba(255,107,107,0.3)">⏹ Detener</button>\n</div>\n';
-  
-  var js = 'function toggleAnim(btn,n){var e=document.querySelector("[gltf-model]");if(!e)return;if(btn.classList.contains("active"))btn.classList.remove("active");else btn.classList.add("active");syncMixers(e);}function stopAnim(){var e=document.querySelector("[gltf-model]");if(!e)return;document.querySelectorAll(".ar-btn.anim-toggle").forEach(function(b){b.classList.remove("active");});syncMixers(e);}function syncMixers(e){e.removeAttribute("animation-mixer");var a=document.querySelectorAll(".ar-btn.anim-toggle.active");if(a.length>0){var c=[];a.forEach(function(b){c.push(b.getAttribute("data-clip").replace(/([.*+?^=!:${}()|\\[\\]\\/\\\\])/g,"\\\\$1"));});setTimeout(function(){e.setAttribute("animation-mixer","clip: ("+c.join("|")+"); loop: repeat; timeScale: 1");},10);}}\n';
-  
-  return { css, html, js };
-}
-
 // ============================================================
 // GENERAR HTML CON RUTAS RELATIVAS (modo archivos separados)
-// Usa concatenación de strings - sin template literals anidados.
+// Usa concatenación de strings — sin template literals anidados.
 // ============================================================
 function buildARHtmlFromPaths(opts) {
   var hasTarget = opts.hasTarget;
@@ -701,23 +674,31 @@ function buildARHtmlFromPaths(opts) {
   var rot       = opts.rot;
   var scl       = opts.scl;
   var animClips = opts.animClips || []; // [{name, enabled}]
-  var addAnimButtons = opts.addAnimButtons;
 
-  var animUI = getAnimButtons(addAnimButtons, animClips);
 
   var CDN_AF = 'https://aframe.io/releases/1.5.0/aframe.min.js';
   var CDN_EX = 'https://cdn.jsdelivr.net/npm/aframe-extras@7.4.0/dist/aframe-extras.min.js';
   var CDN_MR = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
+  var CDN_AJ = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js';
 
-  var tipText  = 'Apunta al target para ver el modelo 3D';
-  var descText = 'Seguimiento de imagen con MindAR';
+  var tipText  = hasTarget ? 'Apunta al target para ver el modelo 3D' : 'Apunta al marcador Hiro para ver el modelo';
+  var descText = hasTarget ? 'Seguimiento de imagen con MindAR' : 'Marcador Hiro de AR.js';
 
-  var activeClips = animClips.filter(function(c){ return c.enabled; });
-  var clipStr = activeClips.length === 0 ? '' :
-                (addAnimButtons) ? activeClips[0].name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1") : 
-                (activeClips.length === animClips.length || animClips.length === 0) ? '*' :
-                '(' + activeClips.map(function(c){ return c.name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1"); }).join('|') + ')';
-  var animAttr = clipStr ? ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"' : '';
+  // Scripts: A-Frame primero, luego aframe-extras, luego AR library
+  var scripts = '<script src="' + CDN_AF + '"><\/script>' +
+    '<script src="' + CDN_EX + '"><\/script>' +
+    (hasTarget ? '<script src="' + CDN_MR + '"><\/script>' : '<script src="' + CDN_AJ + '"><\/script>');
+
+
+  // Atributos del modelo 3D — animation-mixer usa solo clips seleccionados
+  var enabledClips = animClips.filter(function(c){ return c.enabled; });
+  var animAttr = '';
+  if (enabledClips.length > 0) {
+    var clipStr = (enabledClips.length === animClips.length || animClips.length === 0)
+      ? '*'
+      : enabledClips.map(function(c){ return c.name; }).join(',');
+    animAttr = ' animation-mixer="clip: ' + clipStr + '; loop: repeat; timeScale: 1"';
+  }
 
   var entityTag = '<a-entity gltf-model="' + modelPath + '"' +
     ' position="' + pos + '"' +
@@ -726,6 +707,7 @@ function buildARHtmlFromPaths(opts) {
     ' shadow="cast: true; receive: true"' +
     animAttr + '></a-entity>';
 
+  // lightCode dinámico: refleja exactamente state.lighting al momento de exportar
   var activeLights = (opts.lighting || []).filter(function(l){ return l.enabled; });
   var lightArr = activeLights.map(function(l) {
     var obj = { t: l.type, c: l.color, i: l.intensity };
@@ -738,66 +720,77 @@ function buildARHtmlFromPaths(opts) {
     "    scene.setAttribute('light','defaultLightsEnabled: false');\n" +
     "    " + JSON.stringify(lightArr) + ".forEach(function(l){var e=document.createElement('a-light');e.setAttribute('type',l.t);e.setAttribute('color',l.c);e.setAttribute('intensity',l.i);if(l.p)e.setAttribute('position',l.p);if(l.s){e.setAttribute('cast-shadow','true');e.setAttribute('shadow-map-width','2048');e.setAttribute('shadow-map-height','2048');e.setAttribute('shadow-camera-near','0.1');e.setAttribute('shadow-camera-far','25');e.setAttribute('shadow-camera-left','-4');e.setAttribute('shadow-camera-right','4');e.setAttribute('shadow-camera-top','4');e.setAttribute('shadow-camera-bottom','-4');}scene.appendChild(e);});\n";
 
-  var filterMinCF = opts.filterMinCF || '0.1';
-  var filterBeta  = opts.filterBeta  || '10';
-
+  // Código de la escena (creado directamente en startAR sin setTimeout)
   var sceneCode;
-  sceneCode  = "    var scene = document.createElement('a-scene');\n";
-  sceneCode += "    scene.setAttribute('mindar-image', 'imageTargetSrc: " + mindPath + "; filterMinCF: " + filterMinCF + "; filterBeta: " + filterBeta + ";');\n";
-  sceneCode += "    scene.setAttribute('color-space', 'sRGB');\n";
-  sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');\n";
-  sceneCode += "    scene.setAttribute('vr-mode-ui', 'enabled: false');\n";
-  sceneCode += "    scene.setAttribute('device-orientation-permission-ui', 'enabled: false');\n";
-  sceneCode += "    scene.innerHTML =\n";
-  sceneCode += "      '<a-camera position=\"0 0 0\" look-controls=\"enabled: false\"></a-camera>' +\n";
-  sceneCode += "      '<a-entity mindar-image-target=\"targetIndex: 0\">" +
-    entityTag.replace(/'/g, "\\'").replace(/"/g, '\\"') +
-    "</a-entity>';\n";
-  sceneCode += lightCode;
-  sceneCode += "    document.body.appendChild(scene);\n";
-  sceneCode += "    scene.addEventListener('loaded', function() { var t=document.getElementById('tip'); if(t) t.style.display='block'; });\n";
+  if (hasTarget) {
+    sceneCode  = "    var scene = document.createElement('a-scene');\n";
+    sceneCode += "    scene.setAttribute('mindar-image', 'imageTargetSrc: " + mindPath + ";');\n";
+    sceneCode += "    scene.setAttribute('color-space', 'sRGB');\n";
+    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');\n";
+    sceneCode += "    scene.setAttribute('vr-mode-ui', 'enabled: false');\n";
+    sceneCode += "    scene.setAttribute('device-orientation-permission-ui', 'enabled: false');\n";
+    sceneCode += "    scene.innerHTML =\n";
+    sceneCode += "      '<a-camera position=\"0 0 0\" look-controls=\"enabled: false\"></a-camera>' +\n";
+    sceneCode += "      '<a-entity mindar-image-target=\"targetIndex: 0\">" +
+      "<a-plane rotation=\"-90 0 0\" width=\"2\" height=\"2\" material=\"color:#000;opacity:0.3;transparent:true\" shadow=\"receive:true\"></a-plane>" +
+      entityTag.replace(/'/g, "\\'").replace(/"/g, '\\"') +
+      "</a-entity>';\n";
+    sceneCode += lightCode;
+    sceneCode += "    document.body.appendChild(scene);\n";
+    sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
+  } else {
+    sceneCode  = "    var scene = document.createElement('a-scene');\n";
+    sceneCode += "    scene.setAttribute('embedded', '');\n";
+    sceneCode += "    scene.setAttribute('arjs', 'trackingMethod: best; sourceType: webcam; debugUIEnabled: false;');\n";
+    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');\n";
+    sceneCode += "    scene.setAttribute('vr-mode-ui', 'enabled: false');\n";
+    sceneCode += "    scene.innerHTML =\n";
+    sceneCode += "      '<a-marker preset=\"hiro\">" +
+      entityTag.replace(/'/g, "\\'").replace(/"/g, '\\"') +
+      "</a-marker>' +\n";
+    sceneCode += "      '<a-entity camera></a-entity>';\n";
+    sceneCode += lightCode;
+    sceneCode += "    document.body.appendChild(scene);\n";
+    sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
 
-  var scripts =
-    '<script src="' + CDN_AF + '"><\/script>\n' +
-    '<script src="' + CDN_EX + '"><\/script>\n' +
-    '<script src="' + CDN_MR + '"><\/script>';
+  }
 
   var css =
-    'body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }\n' +
-    '#start-screen { position: fixed; top:0; left:0; width: 100vw; height: 100vh; background: #060810; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; }\n' +
-    '#start-screen h1 { font-size: 24px; color: #fff; margin-bottom: 10px; }\n' +
-    '#start-screen p { font-size: 14px; color: rgba(255,255,255,0.6); max-width: 300px; line-height: 1.6; }\n' +
-    '#start-btn { padding: 14px 40px; background: linear-gradient(135deg, #00d4ff, #0099cc); color: #000; font-weight: 800; font-size: 16px; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 15px rgba(0,212,255,0.3); }\n' +
-    '#tip { position: fixed; bottom: ' + (animUI.html ? '130px' : '24px') + '; left: 50%; transform: translateX(-50%); display: none; background: rgba(0,0,0,0.85); color: #fff; padding: 12px 24px; border-radius: 30px; font-size: 14px; z-index: 50; box-shadow: 0 4px 20px rgba(0,0,0,0.5); backdrop-filter: blur(4px); white-space: nowrap; }' +
-    animUI.css;
+    '*{margin:0;padding:0;box-sizing:border-box}' +
+    'body{background:#000;overflow:hidden;font-family:sans-serif}' +
+    '#start-screen{position:fixed;inset:0;z-index:100;background:#050810;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff;text-align:center;padding:28px}' +
+    '#start-screen h1{font-size:22px;font-weight:700;background:linear-gradient(90deg,#00d4ff,#7b5ea7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}' +
+    '#start-screen p{font-size:13px;color:rgba(255,255,255,.5);max-width:300px;line-height:1.7}' +
+    '#start-btn{padding:14px 38px;background:linear-gradient(135deg,#00d4ff,#0099cc);color:#000;font-weight:800;font-size:15px;border:none;border-radius:50px;cursor:pointer;box-shadow:0 0 30px rgba(0,212,255,.5)}' +
+    '#tip{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.15);white-space:nowrap}';
 
-  var html = '<!DOCTYPE html>\n' +
-    '<html lang="es">\n' +
-    '<head>\n' +
+  var html =
+    '<!DOCTYPE html>\n<html lang="es">\n<head>\n' +
     '<meta charset="UTF-8">\n' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<title>AR Experience</title>\n' +
     scripts + '\n' +
-    '<style>' + css + '</style>\n' +
-    '</head>\n<body>\n' +
+    '<style>' + css + '<\/style>\n' +
+    '<\/head>\n<body>\n' +
     '<div id="start-screen">\n' +
-    '  <div style="font-size:52px">&#x1F4E6;</div>\n' +
-    '  <h1>AR Experience</h1>\n' +
-    '  <p>' + descText + '</p>\n' +
-    '  <button id="start-btn" onclick="startAR()">Iniciar AR</button>\n' +
-    '  <p style="font-size:10px; color:rgba(255,255,255,0.2); margin-top:20px;">Requiere HTTPS (o localhost) para usar la cámara.</p>\n' +
-    '</div>\n' +
-    animUI.html +
-    '<div id="tip">' + tipText + '</div>\n' +
+    '  <div style="font-size:52px">&#x1F4E6;<\/div>\n' +
+    '  <h1>AR Experience<\/h1>\n' +
+    '  <p>' + descText + '<\/p>\n' +
+    '  <button id="start-btn" onclick="startAR()">Iniciar AR<\/button>\n' +
+    '  <p style="font-size:10px;color:rgba(255,255,255,.2)">localhost o HTTPS<\/p>\n' +
+    '<\/div>\n' +
+    '<div id="tip">' + tipText + '<\/div>\n' +
     '<script>\n' +
-    'function startAR() {\n' +
-    '  document.getElementById("start-screen").style.display = "none";\n' +
+    'var _s=false;\n' +
+    'function startAR(){\n' +
+    '  if(_s)return;_s=true;\n' +
+    '  if(location.protocol===\'file:\'){alert(\'Abre desde http://localhost:8080/ar-experience.html\');_s=false;return;}\n' +
+    '  var ss=document.getElementById(\'start-screen\');if(ss)ss.style.display=\'none\';\n' +
     sceneCode +
     '  setTimeout(function(){var t=document.getElementById(\'tip\');if(t){t.style.opacity=\'0\';t.style.transition=\'opacity .5s\';}},9000);\n' +
     '}\n' +
-    animUI.js +
-    '</script>\n' +
-    '</body>\n</html>';
+    '<\/script>\n' +
+    '<\/body>\n<\/html>';
 
   return html;
 }
@@ -807,15 +800,12 @@ function buildARHtmlFromPaths(opts) {
 // ============================================================
 window.exportWebApp = async function() {
   if (!state.glbFile) { showToast('Carga un modelo GLB primero', 'error'); return; }
-  if (!state.targets.length) { showToast('⚠️ Se requiere un target de imagen para exportar con MindAR', 'error'); return; }
 
   const t   = state.transform;
   const pos = [t.position.x, t.position.y, t.position.z].join(' ');
   const rot = [t.rotation.x, t.rotation.y, t.rotation.z].join(' ');
   const scl = [t.scale.x,    t.scale.y,    t.scale.z   ].join(' ');
-  const hasTarget = true; // Solo MindAR — target siempre requerido
-  const filterMinCF = document.getElementById('ar-filter-min-cf')?.value || '0.1';
-  const filterBeta  = document.getElementById('ar-filter-beta')?.value || '10';
+  const hasTarget = state.targets.length > 0;
 
   showToast('Iniciando export...', 'info');
 
@@ -849,9 +839,10 @@ window.exportWebApp = async function() {
         showToast('✅ Target .mind: ' + (mindResult.size/1024).toFixed(0) + ' KB guardado', 'success');
       }
 
-      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
       showProgress('Generando HTML...');
-      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting, filterMinCF, filterBeta, addAnimButtons });
+      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting });
+
+
 
       const htmlRes  = await fetch('/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -893,26 +884,28 @@ window.exportWebApp = async function() {
       const CDN_AF = 'https://aframe.io/releases/1.5.0/aframe.min.js';
       const CDN_EX = 'https://cdn.jsdelivr.net/npm/aframe-extras@7.4.0/dist/aframe-extras.min.js';
       const CDN_MR = 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js';
+      const CDN_AJ = 'https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js';
+      // A-Frame → aframe-extras (animation-mixer) → AR library
       const scripts = '<script src="' + CDN_AF + '"><\/script>' +
         '<script src="' + CDN_EX + '"><\/script>' +
-        '<script src="' + CDN_MR + '"><\/script>';
+        (hasTarget ? '<script src="' + CDN_MR + '"><\/script>' : '<script src="' + CDN_AJ + '"><\/script>');
+
 
       const blobModelCode = 'function _b(b64,mime){var bin=atob(b64),arr=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return URL.createObjectURL(new Blob([arr],{type:mime}));}\n' +
         'var MODEL_URL=_b("' + modelB64 + '","model/gltf-binary");\n' +
         (hasTarget ? 'var MIND_URL=_b("' + mindB64 + '","application/octet-stream");\n' : '');
 
-      const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
-      const fbActiveClips = state.animClips.filter(function(c){ return c.enabled; });
-      const fbClipStr = fbActiveClips.length === 0 ? '' :
-                    (addAnimButtons) ? fbActiveClips[0].name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1") : 
-                    (fbActiveClips.length === state.animClips.length || state.animClips.length === 0) ? '*' :
-                    '(' + fbActiveClips.map(function(c){ return c.name.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1"); }).join('|') + ')';
-      const fbAnimAttr = fbClipStr ? ' animation-mixer=\"clip: ' + fbClipStr + '; loop: repeat; timeScale: 1\"' : '';
+      // Build animation-mixer attr from selected clips (same logic as buildARHtmlFromPaths)
+      const fbEnabled = state.animClips.filter(function(c){ return c.enabled; });
+      const fbClipStr = fbEnabled.length === 0 ? '' :
+        (fbEnabled.length === state.animClips.length || state.animClips.length === 0) ? '*' :
+        fbEnabled.map(function(c){ return c.name; }).join(',');
+      const fbAnimAttr = fbClipStr ? '\" animation-mixer=\"clip: ' + fbClipStr + '; loop: repeat; timeScale: 1' : '';
 
-      const fbAnimUI = getAnimButtons(addAnimButtons, state.animClips);
+      // entityTag — usa MODEL_URL (blob URL definida en blobModelCode)
+      const entityTag = '<a-entity gltf-model="\' + MODEL_URL + \'" position="' + pos + '" rotation="' + rot + '" scale="' + scl + '" shadow="cast: true; receive: true"' + fbAnimAttr + '></a-entity>';
 
-      const entityTag = '<a-entity gltf-model=\"' + MODEL_URL + '\" position=\"' + pos + '\" rotation=\"' + rot + '\" scale=\"' + scl + '\" shadow=\"cast: true; receive: true\"' + fbAnimAttr + '></a-entity>';
-
+      // lightCode dinámico desde state.lighting (igual que en buildARHtmlFromPaths)
       const fbActiveLights = state.lighting.filter(function(l){ return l.enabled; });
       const fbLightArr = fbActiveLights.map(function(l) {
         var o = { t: l.type, c: l.color, i: l.intensity };
@@ -925,19 +918,34 @@ window.exportWebApp = async function() {
         "    " + JSON.stringify(fbLightArr) + ".forEach(function(l){var e=document.createElement('a-light');e.setAttribute('type',l.t);e.setAttribute('color',l.c);e.setAttribute('intensity',l.i);if(l.p)e.setAttribute('position',l.p);if(l.s){e.setAttribute('cast-shadow','true');e.setAttribute('shadow-map-width','2048');e.setAttribute('shadow-map-height','2048');e.setAttribute('shadow-camera-near','0.1');e.setAttribute('shadow-camera-far','25');e.setAttribute('shadow-camera-left','-4');e.setAttribute('shadow-camera-right','4');e.setAttribute('shadow-camera-top','4');e.setAttribute('shadow-camera-bottom','-4');}scene.appendChild(e);});\n";
 
       var sc;
-      sc  = "    var scene=document.createElement('a-scene');\n";
-      sc += "    scene.setAttribute('mindar-image','imageTargetSrc:'+MIND_URL+';filterMinCF:" + filterMinCF + ";filterBeta:" + filterBeta + ";');\n";
-      sc += "    scene.setAttribute('color-space','sRGB');\n";
-      sc += "    scene.setAttribute('renderer','colorManagement:true;physicallyCorrectLights:true;toneMapping:aces;toneMappingExposure:1.2;shadowMapEnabled:true;shadowMapType:2;');\n";
-      sc += "    scene.setAttribute('vr-mode-ui','enabled:false');\n";
-      sc += "    scene.setAttribute('device-orientation-permission-ui','enabled:false');\n";
-      sc += "    scene.innerHTML='<a-camera position=\"0 0 0\" look-controls=\"enabled:false\"></a-camera><a-entity mindar-image-target=\"targetIndex:0\">" + entityTag + "</a-entity>';\n";
-      sc += fbLightCode;
-      sc += "    document.body.appendChild(scene);\n";
-      sc += "    scene.addEventListener('loaded',function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
+      if (hasTarget) {
+        sc  = "    var scene=document.createElement('a-scene');\n";
+        sc += "    scene.setAttribute('mindar-image','imageTargetSrc:'+MIND_URL+';');\n";
+        sc += "    scene.setAttribute('color-space','sRGB');\n";
+        sc += "    scene.setAttribute('renderer','colorManagement:true;physicallyCorrectLights:true;toneMapping:aces;toneMappingExposure:1.2;shadowMapEnabled:true;shadowMapType:2;');\n";
+        sc += "    scene.setAttribute('vr-mode-ui','enabled:false');\n";
+        sc += "    scene.setAttribute('device-orientation-permission-ui','enabled:false');\n";
+        sc += "    scene.innerHTML='<a-camera position=\"0 0 0\" look-controls=\"enabled:false\"></a-camera><a-entity mindar-image-target=\"targetIndex:0\">" + entityTag.replace(/'/g, "\\'") + "</a-entity>';\n";
+        sc += fbLightCode;
+        sc += "    document.body.appendChild(scene);\n";
+        sc += "    scene.addEventListener('loaded',function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
 
-      const tipText  = 'Apunta al target para ver el modelo 3D';
-      const descText = 'Seguimiento de imagen con MindAR';
+      } else {
+        sc  = "    var scene=document.createElement('a-scene');\n";
+        sc += "    scene.setAttribute('embedded','');\n";
+        sc += "    scene.setAttribute('arjs','trackingMethod:best;sourceType:webcam;debugUIEnabled:false;');\n";
+        sc += "    scene.setAttribute('renderer','colorManagement:true;physicallyCorrectLights:true;toneMapping:aces;toneMappingExposure:1.2;shadowMapEnabled:true;shadowMapType:2;');\n";
+        sc += "    scene.setAttribute('vr-mode-ui','enabled:false');\n";
+        sc += "    scene.innerHTML='<a-marker preset=\"hiro\">" + entityTag.replace(/'/g, "\\'") + "</a-marker><a-entity camera></a-entity>';\n";
+
+        sc += fbLightCode;
+        sc += "    document.body.appendChild(scene);\n";
+        sc += "    scene.addEventListener('loaded',function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
+
+      }
+
+      const tipText  = hasTarget ? 'Apunta al target' : 'Apunta al marcador Hiro';
+      const descText = hasTarget ? 'Seguimiento de imagen MindAR' : 'Marcador Hiro AR.js';
       const html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AR Experience</title>\n' +
         scripts + '\n' +
         '<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;overflow:hidden;font-family:sans-serif}' +
@@ -945,14 +953,12 @@ window.exportWebApp = async function() {
         '#start-screen h1{font-size:22px;font-weight:700;background:linear-gradient(90deg,#00d4ff,#7b5ea7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}' +
         '#start-screen p{font-size:13px;color:rgba(255,255,255,.5);max-width:300px;line-height:1.7}' +
         '#start-btn{padding:14px 38px;background:linear-gradient(135deg,#00d4ff,#0099cc);color:#000;font-weight:800;font-size:15px;border:none;border-radius:50px;cursor:pointer}' +
-        '#tip{position:fixed;bottom:' + (fbAnimUI.html ? '130px' : '24px') + ';left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50}' +
-        fbAnimUI.css +
-        '</style></head><body>\n' +
-        '<div id="start-screen"><div style="font-size:52px">&#x1F4E6;</div><h1>AR Experience</h1><p>' + descText + '</p>' +
-        '<button id="start-btn" onclick="startAR()">Iniciar AR</button>' +
-        '<p style="font-size:10px;color:rgba(255,255,255,.2)">localhost o HTTPS</p></div>\n' +
-        fbAnimUI.html +
-        '<div id="tip">' + tipText + '</div>\n' +
+        '#tip{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50}' +
+        '<\/style><\/head><body>\n' +
+        '<div id="start-screen"><div style="font-size:52px">&#x1F4E6;<\/div><h1>AR Experience<\/h1><p>' + descText + '<\/p>' +
+        '<button id="start-btn" onclick="startAR()">Iniciar AR<\/button>' +
+        '<p style="font-size:10px;color:rgba(255,255,255,.2)">localhost o HTTPS<\/p><\/div>\n' +
+        '<div id="tip">' + tipText + '<\/div>\n' +
         '<script>\n' + blobModelCode +
         'var _s=false;\nfunction startAR(){\n' +
         '  if(_s)return;_s=true;\n' +
@@ -960,9 +966,7 @@ window.exportWebApp = async function() {
         '  var ss=document.getElementById(\'start-screen\');if(ss)ss.style.display=\'none\';\n' +
         sc +
         '  setTimeout(function(){var t=document.getElementById(\'tip\');if(t){t.style.opacity=\'0\';t.style.transition=\'opacity .5s\';}},9000);\n' +
-        '}\n' +
-        fbAnimUI.js +
-        '<\/script><\/body><\/html>';
+        '}\n<\/script><\/body><\/html>';
 
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
