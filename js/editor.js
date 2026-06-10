@@ -618,7 +618,7 @@ async function compileImageToMind(imageFile, onProgress) {
       } catch(e) { URL.revokeObjectURL(url); reject(e); }
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Error cargando imagen')); };
-    img.crossOrigin = 'anonymous';
+    // img.crossOrigin = 'anonymous'; // Not needed for blobs and can cause CORS issues
     img.src = url;
   });
 }
