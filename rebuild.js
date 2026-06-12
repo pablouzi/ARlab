@@ -146,7 +146,35 @@ function buildARHtmlFromPaths(opts) {
     ' rotation="' + rot + '"' +
     ' scale="' + scl + '"' +
     ' shadow="cast: true; receive: true"' +
-    animAttr + '></a-entity>';
+    animAttr;
+    
+  var tapJs = "";
+  var cameraInner = "";
+  if (opts.tapAction && opts.tapAction.type !== 'none') {
+    entityTag += ' class="clickable" ar-tap-handler="type: ' + opts.tapAction.type + '; target: ' + opts.tapAction.target + '"';
+    cameraInner = '<a-entity cursor="fuse: false; rayOrigin: mouse;" raycaster="objects: .clickable"></a-entity>';
+    tapJs = "\\n" +
+"AFRAME.registerComponent('ar-tap-handler', {\\n" +
+"  schema: { type: {type: 'string'}, target: {type: 'string'} },\\n" +
+"  init: function() {\\n" +
+"    this.el.addEventListener('click', () => {\\n" +
+"      console.log('TAP ACTION TRIGGERED!');\\n" +
+"      if (this.data.type === 'url') {\\n" +
+"        window.open(this.data.target, '_blank');\\n" +
+"      } else if (this.data.type === 'anim') {\\n" +
+"        const ctrl = this.el.components['ar-anim-controller'];\\n" +
+"        if (ctrl && ctrl.actions && ctrl.actions[this.data.target]) {\\n" +
+"          const action = ctrl.actions[this.data.target];\\n" +
+"          ctrl.toggle(this.data.target, action.paused);\\n" +
+"        } else if (this.el.components['animation-mixer']) {\\n" +
+"          this.el.setAttribute('animation-mixer', 'clip: ' + this.data.target);\\n" +
+"        }\\n" +
+"      }\\n" +
+"    });\\n" +
+"  }\\n" +
+"});\\n";
+  }
+  entityTag += '></a-entity>';
 
   // lightCode dinámico: refleja exactamente state.lighting al momento de exportar
   var activeLights = (opts.lighting || []).filter(function(l){ return l.enabled; });
@@ -164,10 +192,16 @@ function buildARHtmlFromPaths(opts) {
   // Código de la escena (creado directamente en startAR sin setTimeout)
   var sceneCode;
   if (hasTarget) {
+    var minCF = (opts.trackingFilter && opts.trackingFilter.minCF !== undefined) ? opts.trackingFilter.minCF : 0.001;
+    var beta  = (opts.trackingFilter && opts.trackingFilter.beta !== undefined) ? opts.trackingFilter.beta : 10;
     sceneCode  = "    var scene = document.createElement('a-scene');\\n";
-    sceneCode += "    scene.setAttribute('mindar-image', 'imageTargetSrc: " + mindPath + ";');\\n";
+    if (opts.tapAction && opts.tapAction.type !== 'none') {
+      sceneCode += "    scene.setAttribute('cursor', 'rayOrigin: mouse; fuse: false');\\n";
+      sceneCode += "    scene.setAttribute('raycaster', 'objects: .clickable');\\n";
+    }
+    sceneCode += "    scene.setAttribute('mindar-image', 'imageTargetSrc: " + mindPath + "; filterMinCF: " + minCF + "; filterBeta: " + beta + ";');\\n";
     sceneCode += "    scene.setAttribute('color-space', 'sRGB');\\n";
-    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');\\n";
+    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmic;');\\n";
     sceneCode += "    scene.setAttribute('vr-mode-ui', 'enabled: false');\\n";
     sceneCode += "    scene.setAttribute('device-orientation-permission-ui', 'enabled: false');\\n";
     sceneCode += "    scene.innerHTML =\\n";
@@ -180,15 +214,19 @@ function buildARHtmlFromPaths(opts) {
     sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\\n";
   } else {
     sceneCode  = "    var scene = document.createElement('a-scene');\\n";
+    if (opts.tapAction && opts.tapAction.type !== 'none') {
+      sceneCode += "    scene.setAttribute('cursor', 'rayOrigin: mouse; fuse: false');\\n";
+      sceneCode += "    scene.setAttribute('raycaster', 'objects: .clickable');\\n";
+    }
     sceneCode += "    scene.setAttribute('embedded', '');\\n";
     sceneCode += "    scene.setAttribute('arjs', 'trackingMethod: best; sourceType: webcam; debugUIEnabled: false;');\\n";
-    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: aces; toneMappingExposure: 1.2; shadowMapEnabled: true; shadowMapType: 2;');\\n";
+    sceneCode += "    scene.setAttribute('renderer', 'colorManagement: true; physicallyCorrectLights: true; toneMapping: ACESFilmic;');\\n";
     sceneCode += "    scene.setAttribute('vr-mode-ui', 'enabled: false');\\n";
     sceneCode += "    scene.innerHTML =\\n";
     sceneCode += "      '<a-marker preset=\\\"hiro\\\">" +
       entityTag.replace(/'/g, "\\\\'").replace(/"/g, '\\\\"') +
       "</a-marker>' +\\n";
-    sceneCode += "      '<a-entity camera></a-entity>';\\n";
+    sceneCode += "      '<a-camera position=\\\"0 0 0\\\" look-controls=\\\"enabled: false\\\"></a-camera>';\\n";
     sceneCode += lightCode;
     sceneCode += "    document.body.appendChild(scene);\\n";
     sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\\n";
@@ -202,7 +240,8 @@ function buildARHtmlFromPaths(opts) {
     '#start-screen h1{font-size:22px;font-weight:700;background:linear-gradient(90deg,#00d4ff,#7b5ea7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}' +
     '#start-screen p{font-size:13px;color:rgba(255,255,255,.5);max-width:300px;line-height:1.7}' +
     '#start-btn{padding:14px 38px;background:linear-gradient(135deg,#00d4ff,#0099cc);color:#000;font-weight:800;font-size:15px;border:none;border-radius:50px;cursor:pointer;box-shadow:0 0 30px rgba(0,212,255,.5)}' +
-    '#tip{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.15);white-space:nowrap}';
+    '#tip{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.15);white-space:nowrap}' +
+    '.mindar-ui-overlay{pointer-events:none;}';
 
   var html =
     '<!DOCTYPE html>\\n<html lang="es">\\n<head>\\n' +
@@ -230,6 +269,7 @@ function buildARHtmlFromPaths(opts) {
     sceneCode +
     '  setTimeout(function(){var t=document.getElementById(\\'tip\\');if(t){t.style.opacity=\\'0\\';t.style.transition=\\'opacity .5s\\';}},9000);\\n' +
     '}\\n' +
+    tapJs + '\\n' +
     animUI.js +
     '<\\/script>\\n' +
     '<\\/body>\\n<\\/html>';
@@ -302,7 +342,7 @@ window.exportWebApp = async function() {
 
       showProgress('Generando HTML...');
       const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
-      const animUI = getAnimButtons(addAnimButtons, state.animClips);
+      const animUI = getAnimButtons(addAnimButtons, state.animClips, state.animAutoPlay);
       const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting, animUI });
 
 
@@ -339,7 +379,7 @@ window.exportWebApp = async function() {
 
       showProgress('Generando HTML...');
       const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
-      const animUI = getAnimButtons(addAnimButtons, state.animClips);
+      const animUI = getAnimButtons(addAnimButtons, state.animClips, state.animAutoPlay);
       const html = buildARHtmlFromPaths({ 
         hasTarget, 
         modelPath: 'assets/model.glb', 
@@ -347,7 +387,9 @@ window.exportWebApp = async function() {
         pos, rot, scl, 
         animClips: state.animClips, 
         lighting: state.lighting,
-        animUI
+        animUI,
+        trackingFilter: state.trackingFilter,
+        tapAction: state.tapAction
       });
 
       function downloadFile(blob, filename) {
@@ -396,6 +438,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initThree();
   initDropZones();
   bindTransformControls();
+  bindTrackingFilters();
+  bindTapActionControls();
   bindAnimControls();
   bindSceneOptions();
   renderLightsPanel(); // renderiza panel de iluminación
