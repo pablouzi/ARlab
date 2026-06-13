@@ -15,6 +15,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/TransformControls.js"></script>
 
   <!-- MindAR compiler -->
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-compiler.prod.js"></script>
@@ -253,100 +254,7 @@
       </div>
     </div>
 
-    <!-- TRANSFORM: POSICIÓN -->
-    <div class="prop-group">
-      <div class="prop-group-title cyan">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3M2 12h20M12 2v20"/>
-        </svg>
-        Posición
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label x">X</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider x" id="pos-x-sl" min="-5" max="5" step="0.01" value="0">
-          <input type="number" class="num-input" id="pos-x" value="0" step="0.01">
-        </div>
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label y">Y</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider y" id="pos-y-sl" min="-5" max="5" step="0.01" value="0">
-          <input type="number" class="num-input" id="pos-y" value="0" step="0.01">
-        </div>
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label z">Z</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider z" id="pos-z-sl" min="-5" max="5" step="0.01" value="0">
-          <input type="number" class="num-input" id="pos-z" value="0" step="0.01">
-        </div>
-      </div>
-
-      <button class="reset-btn" id="reset-position">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-        </svg>
-        Restablecer posición
-      </button>
-    </div>
-
-    <!-- TRANSFORM: ROTACIÓN -->
-    <div class="prop-group">
-      <div class="prop-group-title violet" style="color:var(--accent-pink)">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-        </svg>
-        Rotación
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label x">X</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider x" id="rot-x-sl" min="-180" max="180" step="1" value="0">
-          <div style="position:relative">
-            <input type="number" class="num-input" id="rot-x" value="0" step="1" style="padding-right:26px">
-            <span class="num-unit">°</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label y">Y</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider y" id="rot-y-sl" min="-180" max="180" step="1" value="0">
-          <div style="position:relative">
-            <input type="number" class="num-input" id="rot-y" value="0" step="1" style="padding-right:26px">
-            <span class="num-unit">°</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label z">Z</span>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <input type="range" class="range-slider z" id="rot-z-sl" min="-180" max="180" step="1" value="0">
-          <div style="position:relative">
-            <input type="number" class="num-input" id="rot-z" value="0" step="1" style="padding-right:26px">
-            <span class="num-unit">°</span>
-          </div>
-        </div>
-      </div>
-
-      <button class="reset-btn" id="reset-rotation">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-        </svg>
-        Restablecer rotación
-      </button>
-    </div>
-
-    <!-- TRANSFORM: ESCALA -->
+    <!-- TRANSFORM: ESCALA UNIFORME -->
     <div class="prop-group">
       <div class="prop-group-title green">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -358,19 +266,6 @@
       <div style="margin-bottom:10px;">
         <div class="slider-label">Escala Uniforme</div>
         <input type="range" class="range-slider uni" id="scl-uni" min="0.01" max="5" step="0.01" value="1" style="width:100%">
-      </div>
-
-      <div class="xyz-row">
-        <span class="xyz-label x">X</span>
-        <input type="number" class="num-input" id="scl-x" value="1" step="0.01" min="0.001">
-      </div>
-      <div class="xyz-row">
-        <span class="xyz-label y">Y</span>
-        <input type="number" class="num-input" id="scl-y" value="1" step="0.01" min="0.001">
-      </div>
-      <div class="xyz-row">
-        <span class="xyz-label z">Z</span>
-        <input type="number" class="num-input" id="scl-z" value="1" step="0.01" min="0.001">
       </div>
 
       <button class="reset-btn" id="reset-scale">

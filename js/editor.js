@@ -40,8 +40,11 @@ const state = {
 // ============================================================
 let scene, camera, renderer, controls, currentModel, gridHelper;
 let animations = [], mixer = null;
+let transformControl = null, raycaster = null, mouse = null;
 const clock = new THREE.Clock();
 const threeJsLights = {}; // id -> THREE.Light
+const threeJsLightHelpers = {}; // id -> THREE.DirectionalLightHelper
+const threeJsLightTargets = {}; // id -> THREE.Mesh (esfera)
 let targetPlaneMesh = null; // Para previsualizar el target en el editor
 
 function initThree() {
@@ -83,6 +86,61 @@ function initThree() {
   controls.minDistance = 0.1; controls.maxDistance = 50;
   controls.target.set(0, 0, 0); controls.update();
 
+  // Raycaster y Mouse para selección
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  // TransformControls
+  transformControl = new THREE.TransformControls(camera, renderer.domElement);
+  transformControl.addEventListener('dragging-changed', (e) => {
+    controls.enabled = !e.value;
+  });
+  transformControl.addEventListener('change', () => {
+    // Si estamos interactuando activamente con el gizmo (arrastrando)
+    if (transformControl.dragging && transformControl.object) {
+      const obj = transformControl.object;
+      
+      if (obj.userData && obj.userData.isLightTarget) {
+        // Es una luz
+        const lightId = obj.userData.lightId;
+        updateLightProp(lightId, 'px', obj.position.x);
+        updateLightProp(lightId, 'py', obj.position.y);
+        updateLightProp(lightId, 'pz', obj.position.z);
+        
+        // Actualizar UI de luces
+        const pxInp = document.querySelector(`.lc-pos-sl[data-id="${lightId}"][data-axis="px"]`);
+        if (pxInp) {
+          pxInp.value = obj.position.x; pxInp.nextElementSibling.textContent = obj.position.x.toFixed(1);
+          const pyInp = document.querySelector(`.lc-pos-sl[data-id="${lightId}"][data-axis="py"]`);
+          pyInp.value = obj.position.y; pyInp.nextElementSibling.textContent = obj.position.y.toFixed(1);
+          const pzInp = document.querySelector(`.lc-pos-sl[data-id="${lightId}"][data-axis="pz"]`);
+          pzInp.value = obj.position.z; pzInp.nextElementSibling.textContent = obj.position.z.toFixed(1);
+        }
+      } else {
+        // Es modelo o target
+        const tr = (obj === currentModel) ? state.transform : state.targetTransform;
+        
+        tr.position.x = obj.position.x;
+        tr.position.y = obj.position.y;
+        tr.position.z = obj.position.z;
+
+        tr.rotation.x = THREE.MathUtils.radToDeg(obj.rotation.x);
+        tr.rotation.y = THREE.MathUtils.radToDeg(obj.rotation.y);
+        tr.rotation.z = THREE.MathUtils.radToDeg(obj.rotation.z);
+
+        tr.scale.x = obj.scale.x;
+        tr.scale.y = obj.scale.y;
+        tr.scale.z = obj.scale.z;
+
+        syncTransformUI();
+      }
+    }
+  });
+  scene.add(transformControl);
+
+  // Escuchar clicks para seleccionar modelo o target
+  canvas.addEventListener('pointerdown', onCanvasPointerDown);
+
   new ResizeObserver(() => {
     camera.aspect = container.clientWidth / container.clientHeight;
     camera.updateProjectionMatrix();
@@ -101,10 +159,19 @@ function initLights() {
   Object.values(threeJsLights).forEach(l => { if (l) scene.remove(l); });
   Object.keys(threeJsLights).forEach(k => delete threeJsLights[k]);
 
+  Object.values(threeJsLightHelpers).forEach(h => { if (h) scene.remove(h); });
+  Object.keys(threeJsLightHelpers).forEach(k => delete threeJsLightHelpers[k]);
+
+  Object.values(threeJsLightTargets).forEach(t => { if (t) scene.remove(t); });
+  Object.keys(threeJsLightTargets).forEach(k => delete threeJsLightTargets[k]);
+
   state.lighting.forEach(ld => {
     let light;
     if (ld.type === 'ambient') {
       light = new THREE.AmbientLight(ld.color, ld.intensity);
+      light.visible = ld.enabled;
+      threeJsLights[ld.id] = light;
+      scene.add(light);
     } else {
       light = new THREE.DirectionalLight(ld.color, ld.intensity);
       light.position.set(ld.position.x, ld.position.y, ld.position.z);
@@ -115,10 +182,28 @@ function initLights() {
         light.shadow.camera.bottom = light.shadow.camera.left = -4;
         light.shadow.bias = -0.001;
       }
+      light.visible = ld.enabled;
+      threeJsLights[ld.id] = light;
+      scene.add(light);
+      scene.add(light.target);
+
+      // Crear Helper
+      const helper = new THREE.DirectionalLightHelper(light, 1.0);
+      helper.visible = ld.enabled;
+      threeJsLightHelpers[ld.id] = helper;
+      scene.add(helper);
+      helper.update();
+
+      // Crear Esfera interactiva (Target)
+      const sphereGeom = new THREE.SphereGeometry(0.4, 16, 16);
+      const sphereMat = new THREE.MeshBasicMaterial({ color: ld.color, visible: false }); // Invisible pero seleccionable
+      const targetMesh = new THREE.Mesh(sphereGeom, sphereMat);
+      targetMesh.position.copy(light.position);
+      targetMesh.visible = ld.enabled;
+      targetMesh.userData = { isLightTarget: true, lightId: ld.id };
+      threeJsLightTargets[ld.id] = targetMesh;
+      scene.add(targetMesh);
     }
-    light.visible = ld.enabled;
-    threeJsLights[ld.id] = light;
-    scene.add(light);
   });
 }
 
@@ -126,22 +211,41 @@ function updateLightProp(id, prop, value) {
   const ld = state.lighting.find(l => l.id === id);
   if (!ld) return;
   const tl = threeJsLights[id];
+  const th = threeJsLightHelpers[id];
+  const tt = threeJsLightTargets[id];
 
   if (prop === 'enabled') {
     ld.enabled = value;
     if (tl) tl.visible = value;
+    if (th) th.visible = value;
+    if (tt) tt.visible = value;
   } else if (prop === 'color') {
     ld.color = value;
     if (tl) tl.color.set(value);
+    if (th) th.update();
+    if (tt) tt.material.color.set(value);
   } else if (prop === 'intensity') {
     ld.intensity = value;
     if (tl) tl.intensity = value;
   } else if (prop === 'shadow') {
     ld.shadow = value;
     if (tl && tl.isDirectionalLight) tl.castShadow = value;
-  } else if (prop === 'px') { ld.position.x = value; if(tl) tl.position.x = value; }
-    else if (prop === 'py') { ld.position.y = value; if(tl) tl.position.y = value; }
-    else if (prop === 'pz') { ld.position.z = value; if(tl) tl.position.z = value; }
+  } else if (prop === 'px') { 
+    ld.position.x = value; 
+    if(tl) tl.position.x = value; 
+    if(th) th.update();
+    if(tt) tt.position.x = value;
+  } else if (prop === 'py') { 
+    ld.position.y = value; 
+    if(tl) tl.position.y = value; 
+    if(th) th.update();
+    if(tt) tt.position.y = value;
+  } else if (prop === 'pz') { 
+    ld.position.z = value; 
+    if(tl) tl.position.z = value; 
+    if(th) th.update();
+    if(tt) tt.position.z = value;
+  }
 }
 
 function renderLightsPanel() {
@@ -274,8 +378,59 @@ function animate() {
   requestAnimationFrame(animate);
   if (mixer && state.scene_options.animateModel) mixer.update(clock.getDelta());
   else clock.getDelta();
+
+  Object.values(threeJsLightHelpers).forEach(h => {
+    if (h && h.visible) h.update();
+  });
+
   controls.update();
   renderer.render(scene, camera);
+}
+
+function onCanvasPointerDown(event) {
+  // Solo interceptar clic principal
+  if (event.button !== 0) return;
+
+  const canvas = document.getElementById('three-canvas');
+  const rect = canvas.getBoundingClientRect();
+  
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  
+  raycaster.setFromCamera(mouse, camera);
+  
+  const objectsToTest = [];
+  if (currentModel) objectsToTest.push(currentModel);
+  if (targetPlaneMesh) objectsToTest.push(targetPlaneMesh);
+  Object.values(threeJsLightTargets).forEach(lt => { if (lt) objectsToTest.push(lt); });
+  
+  const intersects = raycaster.intersectObjects(objectsToTest, true);
+  
+  if (intersects.length > 0) {
+    // Buscar la raíz
+    let obj = intersects[0].object;
+    while (obj.parent && obj !== currentModel && obj !== targetPlaneMesh && !obj.userData.isLightTarget && obj.parent.type !== 'Scene') {
+      obj = obj.parent;
+    }
+    
+    if (obj.userData && obj.userData.isLightTarget) {
+      activeTransformTarget = 'light_' + obj.userData.lightId;
+      transformControl.setMode('translate'); // Luces solo se mueven
+      transformControl.attach(obj);
+      // Opcional: enfocar o expandir el panel de iluminación
+    } else if (obj === currentModel) {
+      document.getElementById('btn-transform-model')?.click(); // actualiza UI y estado
+      transformControl.attach(currentModel);
+    } else if (obj === targetPlaneMesh) {
+      document.getElementById('btn-transform-target')?.click(); // actualiza UI y estado
+      transformControl.attach(targetPlaneMesh);
+    }
+  } else {
+    // Si hace clic fuera y NO está arrastrando el gizmo
+    if (!transformControl.dragging) {
+      transformControl.detach();
+    }
+  }
 }
 
 // ============================================================
@@ -827,11 +982,34 @@ function frameModel() {
 function initToolbar() {
   document.querySelectorAll('[data-gizmo]').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('[data-gizmo]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+    const mode = b.getAttribute('data-gizmo');
+    if (transformControl) {
+      if (mode === 'move') transformControl.setMode('translate');
+      else if (mode === 'rotate') transformControl.setMode('rotate');
+      else if (mode === 'scale') transformControl.setMode('scale');
+    }
   }));
   document.querySelectorAll('#btn-reset-cam').forEach(el=>el.addEventListener('click',resetCamera));
   document.querySelectorAll('#btn-top-view').forEach(el=>el.addEventListener('click',topView));
   document.querySelectorAll('#btn-front-view').forEach(el=>el.addEventListener('click',frontView));
   document.querySelectorAll('#btn-frame').forEach(el=>el.addEventListener('click',frameModel));
+
+  // Atajos de teclado para el gizmo
+  window.addEventListener('keydown', (e) => {
+    // Ignorar si estamos escribiendo en un input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    let mode = null;
+    switch(e.key.toLowerCase()) {
+      case 't': mode = 'move'; break;
+      case 'r': mode = 'rotate'; break;
+      case 's': mode = 'scale'; break;
+    }
+    if (mode) {
+      const btn = document.querySelector(`[data-gizmo="${mode}"]`);
+      if (btn) btn.click();
+    }
+  });
 }
 
 function updateFooterStatus() {
