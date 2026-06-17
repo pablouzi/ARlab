@@ -1598,3 +1598,10 @@ input[type="file"] { display: none; }
   pointer-events: none;
 }
 .light-card:not(.lc-enabled) .lc-label { opacity: 0.45; }
+
+/* Accordion Styles */
+.prop-group-title { cursor: pointer; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+.prop-group-title .chevron { transition: transform 0.3s ease; display: inline-flex; align-items: center; margin-left: auto; }
+.prop-group.collapsed .prop-group-title .chevron { transform: rotate(-90deg); }
+.prop-group-content { overflow: hidden; transition: max-height 0.3s cubic-bezier(0, 1, 0, 1), opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease; max-height: 2000px; opacity: 1; }
+.prop-group.collapsed .prop-group-content { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }

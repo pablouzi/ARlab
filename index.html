@@ -14,6 +14,7 @@
   <!-- Three.js r134 — última versión con examples/js/ UMD (r152+ los eliminó) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/exporters/GLTFExporter.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/TransformControls.js"></script>
 
@@ -23,7 +24,7 @@
 
 
   <!-- Styles -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
 
@@ -254,38 +255,132 @@
       </div>
     </div>
 
-    <!-- TRANSFORM: ESCALA UNIFORME -->
+    <!-- TRANSFORM: PROPIEDADES -->
     <div class="prop-group">
-      <div class="prop-group-title green">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-        </svg>
-        Escala
+      <!-- PESTAÑAS -->
+      <div class="tabs" style="display: flex; gap: 4px; background: var(--bg-dark); padding: 4px; border-radius: 8px; margin-bottom: 12px;">
+        <button class="tab-btn transform-tab-btn active" data-tab="tab-pos" style="flex:1; padding: 6px; font-size: 11px; background: var(--bg-card); color: #fff; border: 1px solid var(--border-light); border-radius: 6px; cursor: pointer; transition: 0.2s;">Posición</button>
+        <button class="tab-btn transform-tab-btn" data-tab="tab-rot" style="flex:1; padding: 6px; font-size: 11px; background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: 0.2s;">Rotación</button>
+        <button class="tab-btn transform-tab-btn" data-tab="tab-scl" style="flex:1; padding: 6px; font-size: 11px; background: transparent; color: var(--text-muted); border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: 0.2s;">Escala</button>
       </div>
 
-      <div style="margin-bottom:10px;">
-        <div class="slider-label">Escala Uniforme</div>
-        <input type="range" class="range-slider uni" id="scl-uni" min="0.01" max="5" step="0.01" value="1" style="width:100%">
+      <!-- CONTENIDO: POSICIÓN -->
+      <div id="tab-pos" class="transform-tab-content" style="display: block;">
+        <div class="prop-group-title cyan">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3M2 12h20M12 2v20"/>
+          </svg>
+          Posición
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label x">X</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider x" id="pos-x-sl" min="-5" max="5" step="0.01" value="0">
+            <input type="number" class="num-input" id="pos-x" value="0" step="0.01">
+          </div>
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label y">Y</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider y" id="pos-y-sl" min="-5" max="5" step="0.01" value="0">
+            <input type="number" class="num-input" id="pos-y" value="0" step="0.01">
+          </div>
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label z">Z</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider z" id="pos-z-sl" min="-5" max="5" step="0.01" value="0">
+            <input type="number" class="num-input" id="pos-z" value="0" step="0.01">
+          </div>
+        </div>
+        <button class="reset-btn" id="reset-position">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+          Restablecer posición
+        </button>
       </div>
 
-      <button class="reset-btn" id="reset-scale">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-          <path d="M3 3v5h5"/>
-        </svg>
-        Restablecer escala
-      </button>
+      <!-- CONTENIDO: ROTACIÓN -->
+      <div id="tab-rot" class="transform-tab-content" style="display: none;">
+        <div class="prop-group-title violet" style="color:var(--accent-pink)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+          Rotación
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label x">X</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider x" id="rot-x-sl" min="-180" max="180" step="1" value="0">
+            <div style="position:relative">
+              <input type="number" class="num-input" id="rot-x" value="0" step="1" style="padding-right:26px">
+              <span class="num-unit">°</span>
+            </div>
+          </div>
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label y">Y</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider y" id="rot-y-sl" min="-180" max="180" step="1" value="0">
+            <div style="position:relative">
+              <input type="number" class="num-input" id="rot-y" value="0" step="1" style="padding-right:26px">
+              <span class="num-unit">°</span>
+            </div>
+          </div>
+        </div>
+        <div class="xyz-row">
+          <span class="xyz-label z">Z</span>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <input type="range" class="range-slider z" id="rot-z-sl" min="-180" max="180" step="1" value="0">
+            <div style="position:relative">
+              <input type="number" class="num-input" id="rot-z" value="0" step="1" style="padding-right:26px">
+              <span class="num-unit">°</span>
+            </div>
+          </div>
+        </div>
+        <button class="reset-btn" id="reset-rotation">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+          Restablecer rotación
+        </button>
+      </div>
+
+      <!-- CONTENIDO: ESCALA UNIFORME -->
+      <div id="tab-scl" class="transform-tab-content" style="display: none;">
+        <div class="prop-group-title green">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          </svg>
+          Escala
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="slider-label">Escala Uniforme</div>
+          <input type="range" class="range-slider uni" id="scl-uni" min="0.01" max="5" step="0.01" value="1" style="width:100%">
+        </div>
+        <button class="reset-btn" id="reset-scale">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+          Restablecer escala
+        </button>
+      </div>
     </div>
 
     <!-- ANIMACIONES -->
-    <div class="prop-group anim-section" style="display:none;">
+    <div class="prop-group anim-section collapsed" style="display:none;">
       <div class="prop-group-title amber">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="5 3 19 12 5 21 5 3"/>
         </svg>
         Animaciones a Exportar / Controlar
         <span id="anim-count-badge" class="anim-count-badge"></span>
-      </div>
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
 
       <div class="toggle-row">
         <span class="toggle-label">Reproducir en preview</span>
@@ -298,23 +393,94 @@
       <!-- Botones Todas / Ninguna -->
       <div class="anim-controls-row">
         <button class="anim-ctrl-btn" id="btn-anim-all">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="10" height="10"><path d="M2 2l12 6-12 6V2z"/></svg>
-          Todas
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          Exportar Todas
         </button>
-        <button class="anim-ctrl-btn secondary" id="btn-anim-none">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><rect x="2" y="2" width="12" height="12" rx="2"/></svg>
+        <button class="anim-ctrl-btn danger" id="btn-anim-none">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
           Ninguna
         </button>
-        <span class="anim-export-hint">Se exportan las activas</span>
-      </div>
+      </div> <!-- Cierra anim-controls-row -->
 
       <!-- Lista dinámica de clips con checkboxes -->
       <div id="anim-list" class="anim-list"></div>
+      </div>
+    </div>
+
+    <!-- EFECTOS PROCEDIMENTALES -->
+    <div class="prop-group collapsed" id="effects-section" style="display:none;">
+      <div class="prop-group-title" style="color: #ff4081;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        Efectos (Animaciones Automáticas)
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
+      
+      <div class="toggle-row">
+        <span class="toggle-label">Giro (Rotar continuamente en Y)</span>
+        <label class="toggle">
+          <input type="checkbox" id="efx-spin">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Levitar (Subir y bajar suavemente)</span>
+        <label class="toggle">
+          <input type="checkbox" id="efx-float">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Latido (Aumentar y reducir tamaño)</span>
+        <label class="toggle">
+          <input type="checkbox" id="efx-pulse">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Balanceo (Rotación como péndulo)</span>
+        <label class="toggle">
+          <input type="checkbox" id="efx-swing">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Entrada Pop-In (Rebote al inicio)</span>
+        <label class="toggle">
+          <input type="checkbox" id="efx-popin">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      </div>
+    </div>
+
+    <!-- MATERIALES -->
+    <div class="prop-group mat-section" id="materials-panel" style="display:none;">
+      <div class="prop-group-title" style="color: #ff9800;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0-10 10h10V2z"/>
+        </svg>
+        Materiales
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
+      <div id="mat-list" style="display:flex; flex-direction:column; gap: 12px; margin-top: 8px;">
+        <!-- Materiales dinámicos -->
+      </div>
+      </div>
     </div>
 
 
     <!-- ILUMINACIÓN -->
-    <div class="prop-group">
+    <div class="prop-group collapsed">
       <div class="prop-group-title" style="color: var(--accent-cyan)">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2a7 7 0 0 1 7 7c0 2.97-1.83 5.52-4.5 6.61V17a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.39C6.83 14.52 5 11.97 5 9a7 7 0 0 1 7-7z"/>
@@ -323,14 +489,16 @@
         </svg>
         Iluminación
         <span id="lights-badge" class="anim-count-badge"></span>
-      </div>
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
       <div id="lights-list"></div>
+      </div>
     </div>
 
 
     <!-- ESCENA -->
 
-    <div class="prop-group">
+    <div class="prop-group collapsed">
       <div class="prop-group-title" style="color:var(--accent-amber)">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="5"/>
@@ -344,7 +512,8 @@
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
         </svg>
         Escena
-      </div>
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
 
       <div class="toggle-row">
         <span class="toggle-label">Grilla de referencia</span>
@@ -381,6 +550,7 @@
         </div>
       </div>
 
+      </div>
     </div>
 
     <!-- AR CONFIG -->
@@ -392,7 +562,8 @@
           <circle cx="12" cy="12" r="2"/>
         </svg>
         Config. AR Export
-      </div>
+      <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+      <div class="prop-group-content">
 
       <div class="slider-label" style="font-size:11px; color:var(--text-secondary);margin-bottom:6px;">
         Modo de escala AR
@@ -464,6 +635,7 @@
         • Usa <strong>MindAR.js</strong> para rastreo<br>
         • Requiere HTTPS o localhost
       </div>
+      </div>
     </div>
 
   </aside>
@@ -506,7 +678,7 @@
 <div class="toast-container"></div>
 
 <!-- Editor Script -->
-<script src="js/editor.js"></script>
+<script src="js/editor.js?v=2"></script>
 
 <!-- Inline fixes for color picker -->
 <script>

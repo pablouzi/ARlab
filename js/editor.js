@@ -22,7 +22,8 @@ const state = {
     scale:    { x:1, y:1, z:1 },
   },
   animAutoPlay: 'first',
-  tapAction: { type: 'none', target: '' },
+  tapAction: { type: 'none', target: '' }, // type: 'none' | 'url' | 'anim'
+  proceduralAnims: { spin: false, float: false, pulse: false, swing: false, popin: false },
   trackingFilter: { minCF: 0.001, beta: 10 },
   scene_options: { autoRotate:false, showShadow:true, showGrid:true, animateModel:true },
   // Luces — state canónico (editor + export)
@@ -65,6 +66,13 @@ function initThree() {
   renderer.outputEncoding    = THREE.sRGBEncoding;
   renderer.toneMapping       = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.2;
+
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load('assets/room-env.png', function (texture) {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.encoding = THREE.sRGBEncoding;
+    scene.environment = texture;
+  });
 
   initLights(); // crea luces desde state.lighting
 
@@ -187,8 +195,8 @@ function initLights() {
       scene.add(light);
       scene.add(light.target);
 
-      // Crear Helper
-      const helper = new THREE.DirectionalLightHelper(light, 1.0);
+      // Crear Helper (más pequeño)
+      const helper = new THREE.DirectionalLightHelper(light, 0.3);
       helper.visible = ld.enabled;
       threeJsLightHelpers[ld.id] = helper;
       scene.add(helper);
@@ -383,6 +391,29 @@ function animate() {
     if (h && h.visible) h.update();
   });
 
+  if (currentModel && currentModel.children.length > 0) {
+    const child = currentModel.children[0];
+    const time = clock.getElapsedTime();
+    let dy=0, ry=0, rz=0, s=0;
+
+    if (state.proceduralAnims.float) dy = Math.sin(time * 2) * 0.1;
+    if (state.proceduralAnims.spin) ry = time * 1.0;
+    if (state.proceduralAnims.swing) rz = Math.sin(time * 2) * 0.2;
+    if (state.proceduralAnims.pulse) s = Math.sin(time * 3) * 0.1;
+
+    // The wrapper (currentModel) handles base transform via user UI.
+    // The child handles procedural effects.
+    child.position.y = dy;
+    child.rotation.set(0, ry, rz);
+    
+    // Default scale is handled by the wrapper. The child scale adds the pulse effect.
+    child.scale.set(1 + s, 1 + s, 1 + s);
+    
+    // Pop-in is an entrance animation, we can skip it in the continuous render loop
+    // or just let it start at 0 and grow to 1 if we tracked "startTime".
+    // For the editor, continuous effects are enough to preview.
+  }
+
   controls.update();
   renderer.render(scene, camera);
 }
@@ -465,9 +496,15 @@ function loadGLB(file) {
         _syncAnimPlayback();
       } else { renderAnimationsList([]); }
 
-
-      scene.add(model); currentModel = model;
+      const wrapper = new THREE.Group();
+      wrapper.name = 'ProceduralWrapper';
+      wrapper.add(model);
+      scene.add(wrapper); currentModel = wrapper;
       state.transform = { position:{x:0,y:0,z:0}, rotation:{x:0,y:0,z:0}, scale:{x:sc,y:sc,z:sc} };
+      applyTransform();
+      syncTransformUI();
+      renderMaterialsPanel(model);
+      document.getElementById('effects-section').style.display = 'block';
 
       const sphere = box2.getBoundingSphere(new THREE.Sphere());
       camera.position.set(sphere.center.x + sphere.radius*2, sphere.center.y + sphere.radius*1.5, sphere.center.z + sphere.radius*2);
@@ -673,6 +710,7 @@ function syncTransformUI() {
 }
 
 function bindTransformControls() {
+  // Pestañas principales (Modelo vs Target)
   document.getElementById('btn-transform-model')?.addEventListener('click', e => {
     activeTransformTarget = 'model';
     e.target.style.background = 'var(--bg-card)'; e.target.style.color = '#fff'; e.target.style.borderColor = 'var(--border-light)';
@@ -684,6 +722,44 @@ function bindTransformControls() {
     e.target.style.background = 'var(--bg-card)'; e.target.style.color = '#fff'; e.target.style.borderColor = 'var(--border-light)';
     const bm = document.getElementById('btn-transform-model'); if(bm){ bm.style.background = 'transparent'; bm.style.color = 'var(--text-muted)'; bm.style.borderColor = 'transparent'; }
     syncTransformUI();
+  });
+
+  // Pestañas de propiedades (Posición, Rotación, Escala)
+  document.querySelectorAll('.transform-tab-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      // Remover active de todos los botones
+      document.querySelectorAll('.transform-tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-muted)';
+        b.style.borderColor = 'transparent';
+      });
+      // Ocultar todos los contenidos
+      document.querySelectorAll('.transform-tab-content').forEach(c => c.style.display = 'none');
+      
+      // Activar botón clickeado
+      e.target.classList.add('active');
+      e.target.style.background = 'var(--bg-card)';
+      e.target.style.color = '#fff';
+      e.target.style.borderColor = 'var(--border-light)';
+      
+      // Mostrar contenido correspondiente
+      const tabId = e.target.getAttribute('data-tab');
+      document.getElementById(tabId).style.display = 'block';
+
+      // Actualizar gizmo
+      if (transformControl) {
+        if (tabId === 'tab-pos') transformControl.setMode('translate');
+        if (tabId === 'tab-rot') transformControl.setMode('rotate');
+        if (tabId === 'tab-scl') transformControl.setMode('scale');
+        
+        // Actualizar toolbar (los botones de la izquierda)
+        const modeMap = { 'tab-pos': 'move', 'tab-rot': 'rotate', 'tab-scl': 'scale' };
+        document.querySelectorAll('[data-gizmo]').forEach(x => x.classList.remove('active'));
+        const tbBtn = document.querySelector(`[data-gizmo="${modeMap[tabId]}"]`);
+        if (tbBtn) tbBtn.classList.add('active');
+      }
+    });
   });
 
   ['x','y','z'].forEach(ax => {
@@ -858,6 +934,24 @@ function bindSceneOptions() {
   }
 }
 
+function bindEffectsPanel() {
+  const map = {
+    'efx-spin': 'spin',
+    'efx-float': 'float',
+    'efx-pulse': 'pulse',
+    'efx-swing': 'swing',
+    'efx-popin': 'popin'
+  };
+  for (const [id, key] of Object.entries(map)) {
+    const cb = document.getElementById(id);
+    if (cb) {
+      cb.addEventListener('change', (e) => {
+        state.proceduralAnims[key] = e.target.checked;
+      });
+    }
+  }
+}
+
 
 // ============================================================
 // DROP ZONES
@@ -984,9 +1078,16 @@ function initToolbar() {
     document.querySelectorAll('[data-gizmo]').forEach(x=>x.classList.remove('active')); b.classList.add('active');
     const mode = b.getAttribute('data-gizmo');
     if (transformControl) {
-      if (mode === 'move') transformControl.setMode('translate');
-      else if (mode === 'rotate') transformControl.setMode('rotate');
-      else if (mode === 'scale') transformControl.setMode('scale');
+      if (mode === 'move') {
+        transformControl.setMode('translate');
+        document.querySelector('.transform-tab-btn[data-tab="tab-pos"]')?.click();
+      } else if (mode === 'rotate') {
+        transformControl.setMode('rotate');
+        document.querySelector('.transform-tab-btn[data-tab="tab-rot"]')?.click();
+      } else if (mode === 'scale') {
+        transformControl.setMode('scale');
+        document.querySelector('.transform-tab-btn[data-tab="tab-scl"]')?.click();
+      }
     }
   }));
   document.querySelectorAll('#btn-reset-cam').forEach(el=>el.addEventListener('click',resetCamera));
@@ -1022,6 +1123,98 @@ function updateFooterStatus() {
     parts.push(`▶ ${en}/${state.animClips.length} clips`);
   }
   el.textContent = parts.length ? parts.join('  ·  ') : 'Sin archivos cargados';
+}
+
+// ============================================================
+// MATERIALS
+// ============================================================
+function renderMaterialsPanel(model) {
+  const panel = document.getElementById('materials-panel');
+  const list = document.getElementById('mat-list');
+  list.innerHTML = '';
+  
+  const materials = new Map(); // Para evitar duplicados
+
+  model.traverse(child => {
+    if (child.isMesh && child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => materials.set(m.uuid, m));
+      } else {
+        materials.set(child.material.uuid, child.material);
+      }
+    }
+  });
+
+  if (materials.size === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+  
+  panel.style.display = 'block';
+
+  materials.forEach((mat) => {
+    const matDiv = document.createElement('div');
+    matDiv.className = 'anim-clip-item'; // Reusamos el estilo de la caja
+    matDiv.style.flexDirection = 'column';
+    matDiv.style.alignItems = 'flex-start';
+    matDiv.style.gap = '8px';
+    
+    // Título del material
+    const title = document.createElement('div');
+    title.style.fontWeight = 'bold';
+    title.style.color = 'var(--text-light)';
+    title.style.fontSize = '12px';
+    title.textContent = mat.name || 'Material sin nombre';
+    matDiv.appendChild(title);
+
+    // Color Base
+    if (mat.color !== undefined) {
+      const colorRow = document.createElement('div');
+      colorRow.style.display = 'flex'; colorRow.style.justifyContent = 'space-between'; colorRow.style.width = '100%'; colorRow.style.alignItems = 'center';
+      colorRow.innerHTML = `<span style="font-size:11px; color:var(--text-muted)">Color</span>`;
+      const colorInp = document.createElement('input');
+      colorInp.type = 'color';
+      colorInp.value = '#' + mat.color.getHexString();
+      colorInp.style.width = '24px'; colorInp.style.height = '24px'; colorInp.style.padding = '0'; colorInp.style.border = 'none'; colorInp.style.borderRadius = '4px'; colorInp.style.cursor = 'pointer';
+      colorInp.addEventListener('input', e => {
+        mat.color.set(e.target.value);
+      });
+      colorRow.appendChild(colorInp);
+      matDiv.appendChild(colorRow);
+    }
+
+    // Metalness
+    if (mat.metalness !== undefined) {
+      const row = document.createElement('div');
+      row.style.display = 'flex'; row.style.flexDirection = 'column'; row.style.width = '100%'; row.style.gap = '4px';
+      row.innerHTML = `<div style="display:flex;justify-content:space-between"><span style="font-size:11px; color:var(--text-muted)">Metalness</span><span style="font-size:11px" id="lbl-met-${mat.uuid}">${mat.metalness.toFixed(2)}</span></div>`;
+      const sl = document.createElement('input');
+      sl.type = 'range'; sl.min = '0'; sl.max = '1'; sl.step = '0.01'; sl.value = mat.metalness; sl.className = 'range-slider'; sl.style.width = '100%';
+      sl.addEventListener('input', e => {
+        mat.metalness = parseFloat(e.target.value);
+        document.getElementById(`lbl-met-${mat.uuid}`).textContent = mat.metalness.toFixed(2);
+      });
+      row.appendChild(sl);
+      matDiv.appendChild(row);
+    }
+
+    // Roughness
+    if (mat.roughness !== undefined) {
+      const row = document.createElement('div');
+      row.style.display = 'flex'; row.style.flexDirection = 'column'; row.style.width = '100%'; row.style.gap = '4px';
+      row.innerHTML = `<div style="display:flex;justify-content:space-between"><span style="font-size:11px; color:var(--text-muted)">Rugosidad</span><span style="font-size:11px" id="lbl-rog-${mat.uuid}">${mat.roughness.toFixed(2)}</span></div>`;
+      const sl = document.createElement('input');
+      sl.type = 'range'; sl.min = '0'; sl.max = '1'; sl.step = '0.01'; sl.value = mat.roughness; sl.className = 'range-slider'; sl.style.width = '100%';
+      sl.addEventListener('input', e => {
+        mat.roughness = parseFloat(e.target.value);
+        document.getElementById(`lbl-rog-${mat.uuid}`).textContent = mat.roughness.toFixed(2);
+      });
+      row.appendChild(sl);
+      matDiv.appendChild(row);
+    }
+
+    list.appendChild(matDiv);
+  });
 }
 
 // ============================================================
@@ -1158,10 +1351,25 @@ function buildARHtmlFromPaths(opts) {
     }
   }
 
+  var aA = opts.proceduralAnims || {};
+  var px = parseFloat(relPos.x); var py = parseFloat(relPos.y); var pz = parseFloat(relPos.z);
+  var rx = THREE.MathUtils.radToDeg(relRot.x); var ry = THREE.MathUtils.radToDeg(relRot.y); var rz = THREE.MathUtils.radToDeg(relRot.z);
+  var sx = parseFloat(relScale.x); var sy = parseFloat(relScale.y); var sz = parseFloat(relScale.z);
+
+  if (aA.float) animAttr += ' animation__float="property: position; dir: alternate; dur: 1500; easing: easeInOutSine; loop: true; to: ' + px + ' ' + (py + 0.1).toFixed(3) + ' ' + pz + '"';
+  if (aA.spin) animAttr += ' animation__spin="property: rotation; dur: 6283; easing: linear; loop: true; to: ' + rx.toFixed(2) + ' ' + (ry + 360).toFixed(2) + ' ' + rz.toFixed(2) + '"';
+  if (aA.swing) animAttr += ' animation__swing="property: rotation; dir: alternate; dur: 1500; easing: easeInOutSine; loop: true; to: ' + rx.toFixed(2) + ' ' + ry.toFixed(2) + ' ' + (rz + 15).toFixed(2) + '"';
+  
+  if (aA.popin) {
+    animAttr += ' animation__popin="property: scale; from: 0 0 0; to: ' + scl + '; dur: 1500; easing: easeOutElastic; loop: false"';
+  } else if (aA.pulse) {
+    animAttr += ' animation__pulse="property: scale; dir: alternate; dur: 1000; easing: easeInOutSine; loop: true; to: ' + (sx*1.1).toFixed(3) + ' ' + (sy*1.1).toFixed(3) + ' ' + (sz*1.1).toFixed(3) + '"';
+  }
+
   var entityTag = '<a-entity gltf-model="' + modelPath + '"' +
     ' position="' + pos + '"' +
     ' rotation="' + rot + '"' +
-    ' scale="' + scl + '"' +
+    ' scale="' + (aA.popin ? '0 0 0' : scl) + '"' +
     ' shadow="cast: true; receive: true"' +
     animAttr;
     
@@ -1227,6 +1435,7 @@ function buildARHtmlFromPaths(opts) {
       entityTag.replace(/'/g, "\\'").replace(/"/g, '\\"') +
       "</a-entity>';\n";
     sceneCode += lightCode;
+    sceneCode += "    scene.setAttribute('ar-room-environment', '');\n";
     sceneCode += "    document.body.appendChild(scene);\n";
     sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
   } else {
@@ -1245,6 +1454,7 @@ function buildARHtmlFromPaths(opts) {
       "</a-marker>' +\n";
     sceneCode += "      '<a-camera position=\"0 0 0\" look-controls=\"enabled: false\"></a-camera>';\n";
     sceneCode += lightCode;
+    sceneCode += "    scene.setAttribute('ar-room-environment', '');\n";
     sceneCode += "    document.body.appendChild(scene);\n";
     sceneCode += "    scene.addEventListener('loaded', function(){var t=document.getElementById('tip');if(t)t.style.display='block';});\n";
 
@@ -1259,6 +1469,19 @@ function buildARHtmlFromPaths(opts) {
     '#start-btn{padding:14px 38px;background:linear-gradient(135deg,#00d4ff,#0099cc);color:#000;font-weight:800;font-size:15px;border:none;border-radius:50px;cursor:pointer;box-shadow:0 0 30px rgba(0,212,255,.5)}' +
     '#tip{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:none;background:rgba(0,0,0,.85);color:#fff;padding:12px 22px;border-radius:24px;font-size:14px;z-index:50;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.15);white-space:nowrap}' +
     '.mindar-ui-overlay{pointer-events:none;}';
+
+  var roomEnvJs = "\n" +
+"AFRAME.registerComponent('ar-room-environment', {\n" +
+"  init: function() {\n" +
+"    var el = this.el;\n" +
+"    var textureLoader = new THREE.TextureLoader();\n" +
+"    textureLoader.load('assets/room-env.png', function (texture) {\n" +
+"      texture.mapping = THREE.EquirectangularReflectionMapping;\n" +
+"      texture.encoding = THREE.sRGBEncoding;\n" +
+"      el.object3D.environment = texture;\n" +
+"    });\n" +
+"  }\n" +
+"});\n";
 
   var html =
     '<!DOCTYPE html>\n<html lang="es">\n<head>\n' +
@@ -1278,6 +1501,7 @@ function buildARHtmlFromPaths(opts) {
     animUI.html +
     '<div id="tip">' + tipText + '<\/div>\n' +
     '<script>\n' +
+    roomEnvJs +
     'var _s=false;\n' +
     'function startAR(){\n' +
     '  if(_s)return;_s=true;\n' +
@@ -1335,10 +1559,61 @@ window.exportWebApp = async function() {
       serverOk = ping.status === 204 || ping.status === 200;
     } catch(e) { serverOk = false; }
 
+    // Generar Buffer del modelo actual usando GLTFExporter en vez de enviar state.glbFile crudo
+    // Temporalmente quitamos las transformaciones del editor para no exportarlas "quemadas" en el GLB
+    // ya que el HTML de A-Frame las aplica relativas al target.
+    const origPos = currentModel.position.clone();
+    const origRot = currentModel.rotation.clone();
+    const origScl = currentModel.scale.clone();
+    currentModel.position.set(0,0,0);
+    currentModel.rotation.set(0,0,0);
+    currentModel.scale.set(1,1,1);
+    
+    let origChildPos, origChildRot, origChildScl;
+    if (currentModel.children.length > 0) {
+      const child = currentModel.children[0];
+      origChildPos = child.position.clone();
+      origChildRot = child.rotation.clone();
+      origChildScl = child.scale.clone();
+      child.position.set(0,0,0);
+      child.rotation.set(0,0,0);
+      child.scale.set(1,1,1);
+    }
+    currentModel.updateMatrixWorld(true);
+
+    showProgress('Empaquetando modelo 3D con materiales...');
+    const gltfBuffer = await new Promise((resolve, reject) => {
+      const exporter = new THREE.GLTFExporter();
+      // Filtrar las animaciones para incluir solo las habilitadas, si se desea, 
+      // o incluir todas y dejar que A-Frame las maneje. 
+      // Incluiremos todas las animaciones extraidas originalmente del GLB:
+      exporter.parse(
+        currentModel,
+        (gltf) => resolve(new Blob([gltf], { type: 'model/gltf-binary' })),
+        { binary: true, animations: animations, onError: (error) => reject(error) }
+      );
+    });
+
+    // Restauramos las transformaciones en el editor
+    currentModel.position.copy(origPos);
+    currentModel.rotation.copy(origRot);
+    currentModel.scale.copy(origScl);
+    if (currentModel.children.length > 0 && origChildPos) {
+      const child = currentModel.children[0];
+      child.position.copy(origChildPos);
+      child.rotation.copy(origChildRot);
+      child.scale.copy(origChildScl);
+    }
+    currentModel.updateMatrixWorld(true);
+    
+    // Convertir Blob a ArrayBuffer para subir o descargar
+    const arrayBuffer = await gltfBuffer.arrayBuffer();
+
     if (serverOk) {
       // ── MODO ARCHIVOS SEPARADOS ─────────────────────────────────────────────
       showProgress('Guardando modelo 3D...');
-      const glbResult = await saveBinaryToServer('assets/model.glb', state.glbFile);
+      // Usar arrayBuffer directamente simulando el file structure que espera saveBinaryToServer
+      const glbResult = await saveBinaryToServer('assets/model.glb', new Blob([arrayBuffer]));
       showToast('✅ GLB: ' + (glbResult.size/1024/1024).toFixed(2) + ' MB guardado', 'success');
 
       let mindPath = null;
@@ -1381,7 +1656,6 @@ window.exportWebApp = async function() {
         setTimeout(() => window.open(htmlData.url, '_blank'), 800);
       }
     } else {
-      // ── FALLBACK: DESCARGAR ARCHIVOS SEPARADOS (SIN SERVIDOR) ────────────────
       showProgress('Preparando descarga de archivos...');
       showToast('Generando archivos para descarga local...', 'info');
 
@@ -1420,7 +1694,7 @@ window.exportWebApp = async function() {
       }
 
       // Descargar GLB
-      downloadFile(state.glbFile, 'model.glb');
+      downloadFile(new Blob([arrayBuffer], { type: 'model/gltf-binary' }), 'model.glb');
       
       // Descargar MIND
       if (mindBuffer) {
@@ -1459,6 +1733,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindTapActionControls();
   bindAnimControls();
   bindSceneOptions();
+  bindEffectsPanel();
   renderLightsPanel(); // renderiza panel de iluminación
   initToolbar();
   updateFooterStatus();
@@ -1475,3 +1750,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 1500);
 });
 
+
+// ACCORDION TOGGLE LOGIC
+document.querySelectorAll('.prop-group-title').forEach(title => {
+  if (title.querySelector('.chevron')) {
+    title.addEventListener('click', (e) => {
+      // Evitar que el click se propague si se hace sobre un checkbox o algo más
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+      const group = title.closest('.prop-group');
+      if (group) group.classList.toggle('collapsed');
+    });
+  }
+});
