@@ -1352,9 +1352,9 @@ function buildARHtmlFromPaths(opts) {
   }
 
   var aA = opts.proceduralAnims || {};
-  var px = parseFloat(relPos.x); var py = parseFloat(relPos.y); var pz = parseFloat(relPos.z);
-  var rx = THREE.MathUtils.radToDeg(relRot.x); var ry = THREE.MathUtils.radToDeg(relRot.y); var rz = THREE.MathUtils.radToDeg(relRot.z);
-  var sx = parseFloat(relScale.x); var sy = parseFloat(relScale.y); var sz = parseFloat(relScale.z);
+  var pArr = pos.split(' '); var px = parseFloat(pArr[0])||0; var py = parseFloat(pArr[1])||0; var pz = parseFloat(pArr[2])||0;
+  var rArr = rot.split(' '); var rx = parseFloat(rArr[0])||0; var ry = parseFloat(rArr[1])||0; var rz = parseFloat(rArr[2])||0;
+  var sArr = scl.split(' '); var sx = parseFloat(sArr[0])||1; var sy = parseFloat(sArr[1])||1; var sz = parseFloat(sArr[2])||1;
 
   if (aA.float) animAttr += ' animation__float="property: position; dir: alternate; dur: 1500; easing: easeInOutSine; loop: true; to: ' + px + ' ' + (py + 0.1).toFixed(3) + ' ' + pz + '"';
   if (aA.spin) animAttr += ' animation__spin="property: rotation; dur: 6283; easing: linear; loop: true; to: ' + rx.toFixed(2) + ' ' + (ry + 360).toFixed(2) + ' ' + rz.toFixed(2) + '"';
