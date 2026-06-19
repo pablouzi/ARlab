@@ -1475,7 +1475,8 @@ function buildARHtmlFromPaths(opts) {
 "  init: function() {\n" +
 "    var el = this.el;\n" +
 "    var textureLoader = new THREE.TextureLoader();\n" +
-"    textureLoader.load('assets/room-env.png', function (texture) {\n" +
+"    textureLoader.setCrossOrigin('anonymous');\n" +
+"    textureLoader.load('https://raw.githubusercontent.com/pablouzi/ARlab/main/assets/room-env.png', function (texture) {\n" +
 "      texture.mapping = THREE.EquirectangularReflectionMapping;\n" +
 "      texture.encoding = THREE.sRGBEncoding;\n" +
 "      el.object3D.environment = texture;\n" +
