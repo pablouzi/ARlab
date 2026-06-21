@@ -47,7 +47,7 @@ function startAR(){
     scene.setAttribute('device-orientation-permission-ui', 'enabled: false');
     scene.innerHTML =
       '<a-camera position="0 0 0" look-controls="enabled: false"></a-camera>' +
-      '<a-entity mindar-image-target="targetIndex: 0"><a-entity gltf-model=\"assets/model.glb\" position=\"0.000 0.000 0.000\" rotation=\"90.00 0.00 0.00\" scale=\"1.006 1.006 1.006\" shadow=\"cast: true; receive: true\" ar-anim-controller></a-entity></a-entity>';
+      '<a-entity mindar-image-target="targetIndex: 0"><a-entity gltf-model=\"assets/model.glb\" position=\"0.000 0.000 0.000\" rotation=\"90.00 0.00 0.00\" scale=\"1.006 1.006 1.006\" shadow=\"cast: true; receive: true\" ar-anim-controller animation__spin=\"property: rotation; dur: 6283; easing: linear; loop: true; to: 90.00 360.00 0.00\"></a-entity></a-entity>';
     scene.setAttribute('light','defaultLightsEnabled: false');
     [{"t":"ambient","c":"#ffffff","i":0.6},{"t":"directional","c":"#ffffff","i":1.2,"p":"3 6 3","s":true},{"t":"directional","c":"#00d4ff","i":0.3,"p":"-3 2 -3"},{"t":"directional","c":"#7b5ea7","i":0.4,"p":"0 -2 -4"}].forEach(function(l){var e=document.createElement('a-light');e.setAttribute('type',l.t);e.setAttribute('color',l.c);e.setAttribute('intensity',l.i);if(l.p)e.setAttribute('position',l.p);if(l.s){e.setAttribute('cast-shadow','true');e.setAttribute('shadow-map-width','2048');e.setAttribute('shadow-map-height','2048');e.setAttribute('shadow-camera-near','0.1');e.setAttribute('shadow-camera-far','25');e.setAttribute('shadow-camera-left','-4');e.setAttribute('shadow-camera-right','4');e.setAttribute('shadow-camera-top','4');e.setAttribute('shadow-camera-bottom','-4');}scene.appendChild(e);});
     scene.setAttribute('ar-room-environment', '');

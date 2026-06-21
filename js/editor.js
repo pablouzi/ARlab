@@ -1570,16 +1570,8 @@ window.exportWebApp = async function() {
     currentModel.rotation.set(0,0,0);
     currentModel.scale.set(1,1,1);
     
-    let origChildPos, origChildRot, origChildScl;
-    if (currentModel.children.length > 0) {
-      const child = currentModel.children[0];
-      origChildPos = child.position.clone();
-      origChildRot = child.rotation.clone();
-      origChildScl = child.scale.clone();
-      child.position.set(0,0,0);
-      child.rotation.set(0,0,0);
-      child.scale.set(1,1,1);
-    }
+    // ProceduralWrapper's transforms are reset so we don't bake them into the GLB.
+    // We DO NOT reset the inner child, as it contains the original GLB intrinsic rotation/scale.
     currentModel.updateMatrixWorld(true);
 
     showProgress('Empaquetando modelo 3D con materiales...');
@@ -1599,12 +1591,7 @@ window.exportWebApp = async function() {
     currentModel.position.copy(origPos);
     currentModel.rotation.copy(origRot);
     currentModel.scale.copy(origScl);
-    if (currentModel.children.length > 0 && origChildPos) {
-      const child = currentModel.children[0];
-      child.position.copy(origChildPos);
-      child.rotation.copy(origChildRot);
-      child.scale.copy(origChildScl);
-    }
+
     currentModel.updateMatrixWorld(true);
     
     // Convertir Blob a ArrayBuffer para subir o descargar
