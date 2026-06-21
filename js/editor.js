@@ -1636,7 +1636,18 @@ window.exportWebApp = async function() {
       showProgress('Generando HTML...');
       const addAnimButtons = document.getElementById('ar-anim-buttons')?.checked || false;
       const animUI = getAnimButtons(addAnimButtons, state.animClips, state.animAutoPlay);
-      const html = buildARHtmlFromPaths({ hasTarget, modelPath: 'assets/model.glb', mindPath, pos, rot, scl, animClips: state.animClips, lighting: state.lighting, animUI });
+      const html = buildARHtmlFromPaths({ 
+        hasTarget, 
+        modelPath: 'assets/model.glb', 
+        mindPath, 
+        pos, rot, scl, 
+        animClips: state.animClips, 
+        lighting: state.lighting, 
+        animUI,
+        trackingFilter: state.trackingFilter,
+        tapAction: state.tapAction,
+        proceduralAnims: state.proceduralAnims
+      });
 
 
 
@@ -1681,7 +1692,8 @@ window.exportWebApp = async function() {
         lighting: state.lighting,
         animUI,
         trackingFilter: state.trackingFilter,
-        tapAction: state.tapAction
+        tapAction: state.tapAction,
+        proceduralAnims: state.proceduralAnims
       });
 
       function downloadFile(blob, filename) {
